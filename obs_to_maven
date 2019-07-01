@@ -177,9 +177,17 @@ def main():
     parser.add_argument('config', help="Path to the YAML configuration file")
     parser.add_argument('out', help="Path to the output maven repository")
 
+    parser.add_argument(
+        "-d", "--debug",
+        help="Show debug messages",
+        action="store_const",
+        dest="loglevel",
+        const=logging.DEBUG,
+        default=logging.INFO)
+
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=args.loglevel)
     logging.debug('Reading configuration')
     config = Configuration(args.config, args.out)
     tmp = tempfile.mkdtemp(prefix="obsmvn-")
