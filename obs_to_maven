@@ -91,6 +91,12 @@ class Artifact:
             logging.warning('Found several jars to extract in %s:\n  %s' % (rpm_file, '\n  '.join(to_extract)))
 
         jar_entry = to_extract[0]
+
+        # try harder to guess the version number from the jar file since it may be different from the rpm
+        matcher = re.search('%s-([0-9.]+).jar' % self.artifact, os.path.basename(jar_entry))
+        if matcher:
+            version = matcher.group(1)
+
         src = rpm.extractfile('.%s' % jar_entry)
         dst_path = os.path.join(tmp, os.path.basename(jar_entry))
         logging.info('extracting %s to %s' % (jar_entry, dst_path))
