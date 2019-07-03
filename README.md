@@ -3,7 +3,6 @@ Dependencies
 
 This tool is Python 3 only... all the listed dependencies need to be installed for it.
 
-* maven
 * PyYAML
 * rpmfile
 * osc

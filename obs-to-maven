@@ -2,20 +2,21 @@
 
 # Tool creating a maven repository out of rpms built by OBS
 # Copyright (C) 2019  SUSE Inc.
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 
 import argparse
+from datetime import datetime
 import logging
 import os
 import os.path
@@ -24,6 +25,7 @@ import rpmfile
 import shutil
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 import yaml
 
 import osc.core
@@ -105,20 +107,65 @@ class Artifact:
 
         return (dst_path, version)
 
+
     def deploy(self, jar, version, repo, mtime):
-        args = ['mvn', 'install:install-file',
-                '-DlocalRepositoryPath=%s' % repo,
-                '-Dfile=%s' % jar,
-                '-Dversion=%s' % version,
-                '-DgroupId=%s' % self.group,
-                '-DartifactId=%s' % self.artifact,
-                '-Dpackaging=jar']
-        subprocess.call(args)
-       
-        # Set the mtime to the one of the package to avoid multiple downloads of the same version
-        jar_path = os.path.join(repo, 'suse', self.artifact, version, '%s-%s.jar' % (self.artifact, version))
+        artifact_folder = os.path.join(repo, self.group, self.artifact)
+        os.makedirs(os.path.join(artifact_folder, version))
+        jar_path = os.path.join(artifact_folder, version, '%s-%s.jar' % (self.artifact, version))
+        logging.info('deploying %s to %s' % (jar, jar_path))
+        shutil.copyfile(jar, jar_path)
         logging.debug('Setting mtime %d on %s' %(mtime, jar_path))
         os.utime(jar_path, (mtime, mtime))
+
+        pom = """<?xml version="1.0" encoding="UTF-8"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>%s</groupId>
+  <artifactId>%s</artifactId>
+  <version>%s</version>
+  <description>POM was created from obs-to-maven</description>
+</project>""" % (self.group, self.artifact, version)
+        with open(os.path.join(artifact_folder, version, '%s-%s.pom' % (self.artifact, version)), 'w') as fd:
+            fd.write(pom)
+
+        # Maintain metadata file repo/group/artifact/maven-metadata-local.xml
+        metadata_path = os.path.join(artifact_folder, "maven-metadata-local.xml")
+        update_time = datetime.strftime(datetime.now(), '%Y%m%d%H%M%S')
+        write_anew = True
+        if os.path.isfile(metadata_path):
+            doc = ET.parse(metadata_path)
+            versions_node = doc.find('versions')
+            lastupdated_node = doc.find('lastUpdated')
+            if versions_node is None or lastupdated_node is None:
+                logging.warning('Invalid XML file: creating a new one: ' % metadata_path)
+            else:
+                version_node = ET.SubElement(versions_node, 'version')
+                version_node.text = version
+                lastupdated_node.text = update_time
+                doc.write(metadata_path)
+                write_anew = False
+
+        # Something wrong happened or we don't have the file: create a fresh one
+        if write_anew:
+            xml = """<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>%s</groupId>
+  <artifactId>%s</artifactId>
+  <versioning>
+    <release>%s</release>
+    <versions>
+      <version>%s</version>
+    </versions>
+    <lastUpdated>%s</lastUpdated>
+  </versioning>
+</metadata>
+""" % (self.group, self.artifact, version, version, update_time)
+            with open(metadata_path, 'w') as fd:
+                fd.write(xml)
+
 
     def process(self, api, repo, tmp):
         logging.info('Processing artifact %s' % self.artifact)
