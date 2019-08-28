@@ -21,8 +21,9 @@ import logging
 import os
 import os.path
 import re
-import rpmfile
+import rpm
 import shutil
+import sys
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -30,6 +31,13 @@ import yaml
 
 import osc.core
 import osc.conf
+
+def make_str(s):
+    if sys.version_info[0] < 3 and isinstance(s, unicode):
+        s = s.encode('utf-8')
+    elif sys.version_info[0] >= 3 and isinstance(s, bytes):
+        s = s.decode('utf-8')
+    return s
 
 class Artifact:
     def __init__(self, config, repositories, group):
@@ -70,22 +78,26 @@ class Artifact:
         return None
 
     def extract(self, rpm_file, tmp):
-        rpm = rpmfile.open(rpm_file)
-        version = rpm.headers.get('version').decode('utf-8')
-        not_linked = [os.path.join(rpm.headers.get(1118)[rpm.headers.get(1116)[idx]],
-                                   rpm.headers.get('basenames')[idx]).decode('utf-8')
-                      for idx in range(len(rpm.headers.get('basenames')))
-                      if not rpm.headers.get('filelinktos')[idx]]
+        ts = rpm.TransactionSet()
+        ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES)
+        rpm_fd = open(rpm_file, 'rb')
+        headers = ts.hdrFromFdno(rpm_fd)
+        rpm_fd.close()
+
+        version = make_str(headers[rpm.RPMTAG_VERSION])
+        not_linked = [make_str(headers[rpm.RPMTAG_FILENAMES][idx])
+                      for idx in range(len(headers[rpm.RPMTAG_FILENAMES]))
+                      if not headers[rpm.RPMTAG_FILELINKTOS][idx]]
 
         logging.debug('not linked:\n  %s' % '\n  '.join(not_linked))
 
         pattern = self.jar if self.jar is not None else ''
         end_pattern = '[^/]*\.jar' if self.jar is None or not self.jar.endswith('.jar') else ''
-        full_pattern = '/usr/share/.*/%s%s' % (pattern, end_pattern)
+        full_pattern = '^/usr/share/.*/%s%s$' % (pattern, end_pattern)
 
         logging.debug('full pattern: %s' % full_pattern)
 
-        to_extract = [f for f in not_linked if re.fullmatch(full_pattern, f)]
+        to_extract = [f for f in not_linked if re.match(full_pattern, f)]
 
         if len(to_extract) == 0:
             logging.error('Found no jar to extract in %s' % rpm_file)
@@ -99,11 +111,14 @@ class Artifact:
         if matcher:
             version = matcher.group(1)
 
-        src = rpm.extractfile('.%s' % jar_entry)
         dst_path = os.path.join(tmp, os.path.basename(jar_entry))
         logging.info('extracting %s to %s' % (jar_entry, dst_path))
+
+        rpm2cpio = subprocess.Popen(('rpm2cpio', rpm_file), stdout=subprocess.PIPE)
         dst = open(dst_path, 'wb')
-        shutil.copyfileobj(src, dst)
+        cpio = subprocess.Popen(('cpio', '-i', '--to-stdout', '.%s' % jar_entry),
+                                stdin=rpm2cpio.stdout, stdout=dst, stderr=subprocess.PIPE)
+        dst.close()
 
         return (dst_path, version)
 

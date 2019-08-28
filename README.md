@@ -1,13 +1,12 @@
 Dependencies
 ============
 
-This tool is Python 3 only... all the listed dependencies need to be installed for it.
+This tool runs on both  Python 2 and Python 3... all the listed dependencies need to be installed for it.
 
 * PyYAML
-* rpmfile
+* python rpm binding
 * osc
-
-For rpmfile to work on python3, srossross/rpmfile#16 PR is needed.
+* cpio
 
 Osc can be installed from [openSUSE:Tools](https://build.opensuse.org/package/show/openSUSE:Tools/osc) to get a python3 build of it.
 
