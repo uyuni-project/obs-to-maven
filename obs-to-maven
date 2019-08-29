@@ -155,7 +155,7 @@ class Artifact:
             versions_node = doc.find('versions')
             lastupdated_node = doc.find('lastUpdated')
             if versions_node is None or lastupdated_node is None:
-                logging.warning('Invalid XML file: creating a new one: ' % metadata_path)
+                logging.warning('Invalid XML file: creating a new one: %s' % metadata_path)
             else:
                 version_node = ET.SubElement(versions_node, 'version')
                 version_node.text = version
