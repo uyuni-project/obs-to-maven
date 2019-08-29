@@ -118,6 +118,7 @@ class Artifact:
         dst = open(dst_path, 'wb')
         cpio = subprocess.Popen(('cpio', '-i', '--to-stdout', '.%s' % jar_entry),
                                 stdin=rpm2cpio.stdout, stdout=dst, stderr=subprocess.PIPE)
+        cpio.wait()
         dst.close()
 
         return (dst_path, version)
