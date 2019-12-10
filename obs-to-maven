@@ -126,7 +126,13 @@ class Artifact:
 
     def deploy(self, jar, version, repo, mtime):
         artifact_folder = os.path.join(repo, self.group, self.artifact)
-        os.makedirs(os.path.join(artifact_folder, version), exist_ok=True)
+        try:
+            os.makedirs(os.path.join(artifact_folder, version))
+        except OSError as e:
+            if e.errno == errno.EEXIST:
+                pass
+            else:
+                raise
         jar_path = os.path.join(artifact_folder, version, '%s-%s.jar' % (self.artifact, version))
         logging.info('deploying %s to %s' % (jar, jar_path))
         shutil.copyfile(jar, jar_path)
