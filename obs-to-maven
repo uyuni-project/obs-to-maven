@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 
 # Tool creating a maven repository out of rpms built by OBS
 # Copyright (C) 2019  SUSE Inc.
