@@ -27,11 +27,10 @@ import shutil
 import sys
 import subprocess
 import tempfile
+import urllib.request
 import xml.etree.ElementTree as ET
 import yaml
-
-import osc.core
-import osc.conf
+import zlib
 
 def make_str(s):
     if sys.version_info[0] < 3 and isinstance(s, unicode):
@@ -40,40 +39,93 @@ def make_str(s):
         s = s.decode('utf-8')
     return s
 
+class Rpm:
+    def __init__(self, location, mtime):
+        self.path = location
+        self.mtime = mtime
+        self.name = location[location.find('/') + 1:]
+
+class Repo:
+    def __init__(self, uri, project, repository):
+        self.uri = uri
+        self.project = project
+        self.repository = repository
+        self._rpms = None
+
+    def find_primary(self):
+        ns = {'repo': 'http://linux.duke.edu/metadata/repo', 'rpm': 'http://linux.duke.edu/metadata/rpm'}
+        f = urllib.request.urlopen(
+            "{}/repositories/{}/{}/repodata/repomd.xml".format(self.uri, self.project, self.repository)
+        )
+        doc = ET.fromstring(f.read())
+        primary_href = doc.find("./repo:data[@type='primary']/repo:location", ns).get("href")
+        return "{}/repositories/{}/{}/{}".format(self.uri, self.project, self.repository, primary_href)
+
+    def parse_primary(self):
+        ns = {"c": "http://linux.duke.edu/metadata/common", "rpm":"http://linux.duke.edu/metadata/rpm"}
+        f = urllib.request.urlopen(self.find_primary())
+        primary_xml = zlib.decompress(f.read(), 16 + zlib.MAX_WBITS)
+        doc = ET.fromstring(primary_xml)
+
+        self._rpms = [
+            Rpm(n.find("c:location", ns).get("href"), int(n.find("c:time", ns).get("file")))
+            for n
+            in doc.findall(".//c:package", ns)
+            if n.find("c:arch", ns).text in ["x86_64", "noarch"]
+        ]
+
+    @property
+    def rpms(self):
+        if not self._rpms:
+            self.parse_primary()
+        return self._rpms
+
+    def get_binary(self, path, target, mtime):
+        """
+        Equivalent of osc.core.get_binary_file
+        """
+        f = urllib.request.urlopen("{}/repositories/{}/{}/{}".format(self.uri, self.project, self.repository, path))
+        target_f = open(target, 'wb')
+        shutil.copyfileobj(f, target_f)
+        target_f.close()
+        f.close()
+        os.utime(target, (mtime, mtime))
+
+
 class Artifact:
     def __init__(self, config, repositories, group):
         self.artifact = config['artifact']
         self.group = config.get('group', group)
         self.package = config.get('package', self.artifact)
         self.arch = config.get('arch', 'noarch')
-        repository = repositories.get(config['repository'], {})
-        self.project = repository['project']
-        self.repository = repository['repository']
+        self.repository = repositories.get(config['repository'])
+        if not self.repository:
+            logging.error('Missing repository definition: %s', config['repository'])
         self.rpm = config.get('rpm')
         self.jar = config.get('jar')
 
-    def get_binary(self, api):
-        binaries = osc.core.get_binarylist(api, self.project, self.repository, 'x86_64', self.package, True)
+    def get_binary(self):
         excluded = ['javadoc', 'examples', 'manual', 'test', 'demo']
-        filtered = [file for file in binaries
-                    if file.name.endswith('.%s.rpm' % self.arch) and
-                    not bool([pattern for pattern in excluded if pattern in file.name]) and
-                    re.match(self.rpm if self.rpm is not None else '', file.name)]
+        filtered = [
+            file
+            for file in self.repository.rpms
+            if not bool([pattern for pattern in excluded if pattern in file.name]) and
+                re.match(self.rpm or self.package + "-[0-9]", file.name)
+        ]
 
         if len(filtered) > 1:
             logging.warning('Found more than one file for %s:\n  %s' %
                     (self.artifact, "\n  ".join([file.name for file in filtered])))
 
         if len(filtered) == 0:
-            logging.error('Found no file for %s among:\n  %s' % (self.artifact, '\n  '.join([f.name for f in binaries])))
+            logging.error('Found no file for %s' % (self.artifact))
             return None
         return filtered[0]
 
-    def fetch_binary(self, api, file, tmp):
+    def fetch_binary(self, file, tmp):
         target_file = os.path.join(tmp, file.name)
         logging.info('Downloading %s' % target_file)
-        osc.core.get_binary_file(api, self.project, self.repository, 'x86_64', file.name, self.package,
-                                 target_file, file.mtime)
+        self.repository.get_binary(file.path, target_file, file.mtime)
         if os.path.isfile(target_file):
             return target_file
         return None
@@ -190,9 +242,9 @@ class Artifact:
                 fd.write(xml)
 
 
-    def process(self, api, repo, tmp):
+    def process(self, repo, tmp):
         logging.info('Processing artifact %s' % self.artifact)
-        file = self.get_binary(api)
+        file = self.get_binary()
 
         # Check if one of the artifact's jar has the same mtime. If so no need to update
         mtimes = [y for x in [
@@ -203,7 +255,7 @@ class Artifact:
 
         if not [mtime for mtime in mtimes if file.mtime == int(mtime)]:
             logging.debug('package mtime: %d, [%s]' % (file.mtime, ', '.join(['%f' % t for t in mtimes])))
-            rpm_file = self.fetch_binary(api, file, tmp)
+            rpm_file = self.fetch_binary(file, tmp)
             if rpm_file is None:
                 logging.error('Failed to download %s' % file)
                 return
@@ -230,13 +282,16 @@ class Configuration:
             f = open(config_path, 'r')
             data = yaml.safe_load(f)
             f.close()
-        self.api = data.get('api', osc.conf.DEFAULTS['apiurl'])
+        self.api = data.get('api', "https://download.opensuse.org")
         self.repo = repo
         repositories = data.get('repositories', {})
-        self.artifacts = [Artifact(artifact, repositories, data.get('group', 'suse')) for artifact in data.get('artifacts', [])]
+        repos = {
+            name: Repo(self.api, data['project'], data['repository'])
+            for name, data
+            in repositories.items()
+        }
 
-        # Load OSC configuration, setup HTTP authentication
-        osc.conf.get_config(override_apiurl=self.api)
+        self.artifacts = [Artifact(artifact, repos, data.get('group', 'suse')) for artifact in data.get('artifacts', [])]
 
 def main():
     parser = argparse.ArgumentParser(
@@ -262,7 +317,7 @@ def main():
     config = Configuration(args.config, args.out)
     tmp = tempfile.mkdtemp(prefix="obsmvn-")
     for artifact in config.artifacts:
-        artifact.process(config.api, config.repo, tmp)
+        artifact.process(config.repo, tmp)
     shutil.rmtree(tmp)
 
 if __name__ == '__main__':
