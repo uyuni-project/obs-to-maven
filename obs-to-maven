@@ -100,7 +100,7 @@ class Artifact:
         self.arch = config.get('arch', 'noarch')
         self.repository = repositories.get(config['repository'])
         if not self.repository:
-            logging.error('Missing repository definition: %s', config['repository'])
+            raise RuntimeError('Missing repository definition: ' + config['repository'])
         self.rpm = config.get('rpm')
         self.jar = config.get('jar')
 
@@ -114,12 +114,11 @@ class Artifact:
         ]
 
         if len(filtered) > 1:
-            logging.warning('Found more than one file for %s:\n  %s' %
-                    (self.artifact, "\n  ".join([file.name for file in filtered])))
+            raise RuntimeError('Found more than one file for {}:\n  {}'.format(
+                self.artifact, "\n  ".join([file.name for file in filtered])))
 
         if len(filtered) == 0:
-            logging.error('Found no file for %s' % (self.artifact))
-            return None
+            raise RuntimeError('Found no file for ' + self.artifact)
         return filtered[0]
 
     def fetch_binary(self, file, tmp):
@@ -153,9 +152,10 @@ class Artifact:
         to_extract = [f for f in not_linked if re.match(full_pattern, f)]
 
         if len(to_extract) == 0:
-            logging.error('Found no jar to extract in %s' % rpm_file)
+            raise RuntimeError('Found no jar to extract in ' + rpm_file)
         elif len(to_extract) > 1:
-            logging.warning('Found several jars to extract in %s:\n  %s' % (rpm_file, '\n  '.join(to_extract)))
+            raise RuntimeError('Found several jars to extract in {}:\n  {}'.format(
+                rpm_file, '\n  '.join(to_extract)))
 
         jar_entry = to_extract[0]
 
@@ -257,13 +257,12 @@ class Artifact:
             logging.debug('package mtime: %d, [%s]' % (file.mtime, ', '.join(['%f' % t for t in mtimes])))
             rpm_file = self.fetch_binary(file, tmp)
             if rpm_file is None:
-                logging.error('Failed to download %s' % file)
-                return
+                raise RuntimeError('Failed to download ' + file)
 
             # Find out the version
-            m = re.match('.*-([^-]+)-[^-]+.%s.rpm' % self.arch, rpm_file)
+            m = re.match('.*-([^-]+)-[^-]+.[^.]+.rpm', rpm_file)
             if m is None:
-                logging.error('Failed to get version of %s' % rpm_file)
+                raise RuntimeError('Failed to get version of ' + rpm_file)
             version = m.group(1)
 
             # Extract the jar and pom
@@ -294,6 +293,7 @@ class Configuration:
         self.artifacts = [Artifact(artifact, repos, data.get('group', 'suse')) for artifact in data.get('artifacts', [])]
 
 def main():
+    ret = 0
     parser = argparse.ArgumentParser(
         description="OBS to Maven repository synchronization tool",
         conflict_handler='resolve',
@@ -316,9 +316,14 @@ def main():
     logging.debug('Reading configuration')
     config = Configuration(args.config, args.out)
     tmp = tempfile.mkdtemp(prefix="obsmvn-")
-    for artifact in config.artifacts:
-        artifact.process(config.repo, tmp)
+    try:
+        for artifact in config.artifacts:
+            artifact.process(config.repo, tmp)
+    except RuntimeError as e:
+        logging.error(e)
+        ret = 1
     shutil.rmtree(tmp)
+    return ret
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
