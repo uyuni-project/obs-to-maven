@@ -55,9 +55,9 @@ The properties of each artifact help locating the RPM and jar files in OBS. The 
 
 Since there is no silver bullet to find the RPM or the JAR file in it, there are some additional optional properties to provide hints:
 
-* `package`: the name of the package in OBS. Note that this is different from the RPM name. By default, the artifact name is used.
+* `package`: the name of the package in OBS. Note that this is different from the RPM name. By default, the artifact name is used and the `demo`, `test`, `manual`, `examples` and `javadoc` rpms are discarded. If the pattern includes the version match, terminate it with `-` to avoid the `-[0-9]` pattern to be appended.
 * `arch`: defaults to `noarch`, but this may need to be overriden in some cases.
-* `rpm`: a regular expression to match the file name of the RPM. By default the `demo`, `test`, `manual`, `examples` and `javadoc` rpms are discarded.
+* `rpm`: a regular expression to match the file name of the RPM **deprecated**
 * `jar`: a regular expression to match the non symlinked jar base name.
 
 As a maven repository needs a group ID for each artifact, this can be configured at several levels.
