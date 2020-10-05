@@ -96,21 +96,23 @@ class Artifact:
     def __init__(self, config, repositories, group):
         self.artifact = config['artifact']
         self.group = config.get('group', group)
-        self.package = config.get('package', self.artifact)
+        self.package = config.get('rpm') or config.get('package', self.artifact)
+        if config.get('rpm'):
+            logging.warning('artifact "rpm" property is deprecated')
         self.arch = config.get('arch', 'noarch')
         self.repository = repositories.get(config['repository'])
         if not self.repository:
             raise RuntimeError('Missing repository definition: ' + config['repository'])
-        self.rpm = config.get('rpm')
         self.jar = config.get('jar')
 
     def get_binary(self):
+        file_pattern = self.package if self.package.endswith("-") else self.package + "-[0-9]"
         excluded = ['javadoc', 'examples', 'manual', 'test', 'demo']
         filtered = [
             file
             for file in self.repository.rpms
             if not bool([pattern for pattern in excluded if pattern in file.name]) and
-                re.match(self.rpm or self.package + "-[0-9]", file.name)
+                re.match(file_pattern, file.name)
         ]
 
         if len(filtered) > 1:
@@ -118,7 +120,7 @@ class Artifact:
                 self.artifact, "\n  ".join([file.name for file in filtered])))
 
         if len(filtered) == 0:
-            raise RuntimeError('Found no file for ' + self.artifact)
+            raise RuntimeError('Found no file matching "{}" for {}'.format(file_pattern, self.artifact))
         return filtered[0]
 
     def fetch_binary(self, file, tmp):
