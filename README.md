@@ -4,7 +4,7 @@ Dependencies
 This tool runs on both  Python 2 and Python 3... all the listed dependencies need to be installed for it.
 
 * PyYAML
-* python rpm binding
+* rpm 
 * osc
 * cpio
 

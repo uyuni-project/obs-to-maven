@@ -17,11 +17,11 @@
 
 import argparse
 from datetime import datetime
+import errno
 import logging
 import os
 import os.path
 import re
-import rpm
 import shutil
 import sys
 import subprocess
@@ -78,16 +78,19 @@ class Artifact:
         return None
 
     def extract(self, rpm_file, tmp):
-        ts = rpm.TransactionSet()
-        ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES)
-        rpm_fd = open(rpm_file, 'rb')
-        headers = ts.hdrFromFdno(rpm_fd)
-        rpm_fd.close()
+        # Get the rpm tags
+        rpm_process = subprocess.Popen(['rpm', '-q', '--xml', '-p', rpm_file], stdout=subprocess.PIPE)
+        rpm_tags = ET.fromstring(rpm_process.communicate()[0])
+        
+        # Get the file links list and package version
+        links = [node.text for node in rpm_tags.findall('.//rpmTag[@name="Filelinktos"]/*')]
+        version = rpm_tags.find(".//rpmTag[@name='Version']/").text
 
-        version = make_str(headers[rpm.RPMTAG_VERSION])
-        not_linked = [make_str(headers[rpm.RPMTAG_FILENAMES][idx])
-                      for idx in range(len(headers[rpm.RPMTAG_FILENAMES]))
-                      if not headers[rpm.RPMTAG_FILELINKTOS][idx]]
+        # Get the files
+        rpm_process = subprocess.Popen(['rpm', '-qlp', rpm_file], stdout=subprocess.PIPE)
+        files = rpm_process.communicate()[0].splitlines()
+
+        not_linked = [make_str(f) for (i, f) in enumerate(files) if links[i] is None]
 
         logging.debug('not linked:\n  %s' % '\n  '.join(not_linked))
 
