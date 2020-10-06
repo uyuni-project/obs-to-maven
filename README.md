@@ -1,14 +1,11 @@
 Dependencies
 ============
 
-This tool runs on both  Python 2 and Python 3... all the listed dependencies need to be installed for it.
+This tool runs only on Python 3... all the listed dependencies need to be installed for it.
 
 * PyYAML
 * rpm 
-* osc
 * cpio
-
-Osc can be installed from [openSUSE:Tools](https://build.opensuse.org/package/show/openSUSE:Tools/osc) to get a python3 build of it.
 
 Configuration file
 ==================
