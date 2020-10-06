@@ -31,12 +31,6 @@ import xml.etree.ElementTree as ET
 import yaml
 import zlib
 
-def make_str(s):
-    if sys.version_info[0] < 3 and isinstance(s, unicode):
-        s = s.encode('utf-8')
-    elif sys.version_info[0] >= 3 and isinstance(s, bytes):
-        s = s.decode('utf-8')
-    return s
 
 class Rpm:
     def __init__(self, location, mtime):
@@ -143,12 +137,12 @@ class Artifact:
         rpm_process = subprocess.Popen(['rpm', '-qlp', rpm_file], stdout=subprocess.PIPE)
         files = rpm_process.communicate()[0].splitlines()
 
-        not_linked = [make_str(f) for (i, f) in enumerate(files) if links[i] is None]
+        not_linked = [f.decode('utf-8') for (i, f) in enumerate(files) if links[i] is None]
 
         logging.debug('not linked:\n  %s' % '\n  '.join(not_linked))
 
         pattern = self.jar if self.jar is not None else self.artifact
-        end_pattern = '[^/]*\.jar' if self.jar is None or not self.jar.endswith('.jar') else ''
+        end_pattern = r'[^/]*\.jar' if self.jar is None or not self.jar.endswith('.jar') else ''
         full_pattern = '^/usr/share/.*/%s%s$' % (pattern, end_pattern)
 
         logging.debug('full pattern: %s' % full_pattern)
