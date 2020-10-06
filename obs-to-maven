@@ -145,21 +145,25 @@ class Artifact:
 
         logging.debug('not linked:\n  %s' % '\n  '.join(not_linked))
 
-        pattern = self.jar if self.jar is not None else ''
+        pattern = self.jar if self.jar is not None else self.artifact
         end_pattern = '[^/]*\.jar' if self.jar is None or not self.jar.endswith('.jar') else ''
         full_pattern = '^/usr/share/.*/%s%s$' % (pattern, end_pattern)
 
         logging.debug('full pattern: %s' % full_pattern)
 
-        to_extract = [f for f in not_linked if re.match(full_pattern, f)]
-
-        if len(to_extract) == 0:
+        jars = [f for f in not_linked if re.match('^/usr/share/.*/{}'.format(end_pattern), f)]
+        if len(jars) == 0:
             raise RuntimeError('Found no jar to extract in ' + rpm_file)
-        elif len(to_extract) > 1:
-            raise RuntimeError('Found several jars to extract in {}:\n  {}'.format(
-                rpm_file, '\n  '.join(to_extract)))
-
-        jar_entry = to_extract[0]
+        elif len(jars) > 1:
+            to_extract = [f for f in jars if re.match(full_pattern, f)]
+            if len(to_extract) == 0:
+                raise RuntimeError('Found no jar matching {} in {}'.format(pattern, rpm_file))
+            elif len(to_extract) > 1:
+                raise RuntimeError('Found several jars to extract in {}:\n  {}'.format(
+                    rpm_file, '\n  '.join(to_extract)))
+            jar_entry = to_extract[0]
+        else:
+            jar_entry = jars[0]
 
         # try harder to guess the version number from the jar file since it may be different from the rpm
         matcher = re.search('%s-([0-9.]+).jar' % self.artifact, os.path.basename(jar_entry))
