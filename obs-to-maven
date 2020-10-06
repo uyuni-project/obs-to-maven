@@ -169,12 +169,20 @@ class Artifact:
         dst_path = os.path.join(tmp, os.path.basename(jar_entry))
         logging.info('extracting %s to %s' % (jar_entry, dst_path))
 
+        old_pwd = os.getcwd()
+        os.chdir(tmp)
         rpm2cpio = subprocess.Popen(('rpm2cpio', rpm_file), stdout=subprocess.PIPE)
         dst = open(dst_path, 'wb')
-        cpio = subprocess.Popen(('cpio', '-i', '--to-stdout', '.%s' % jar_entry),
-                                stdin=rpm2cpio.stdout, stdout=dst, stderr=subprocess.PIPE)
-        cpio.wait()
+        cpio = subprocess.Popen(('cpio', '-id', '.' + jar_entry),
+                                stdin=rpm2cpio.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ret = cpio.wait()
         dst.close()
+        os.chdir(old_pwd)
+
+        if ret != 0:
+            raise RuntimeError("Failed to extract jar file {}: {}".format(jar_entry, cpio.communicate()[1]))
+        shutil.copy(os.path.join(tmp, '.' + jar_entry), dst_path)
+        shutil.rmtree(os.path.join(tmp, 'usr'))
 
         return (dst_path, version)
 
