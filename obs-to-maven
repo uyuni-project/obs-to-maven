@@ -283,11 +283,11 @@ class Configuration:
             f = open(config_path, 'r')
             data = yaml.safe_load(f)
             f.close()
-        self.api = data.get('api', "https://download.opensuse.org")
+        self.url = data.get('url', "https://download.opensuse.org")
         self.repo = repo
         repositories = data.get('repositories', {})
         repos = {
-            name: Repo(self.api, data['project'], data['repository'])
+            name: Repo(self.url, data['project'], data['repository'])
             for name, data
             in repositories.items()
         }

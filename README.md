@@ -16,7 +16,7 @@ Configuration file
 Here is a sample configuration file:
 
 ```yaml
-api: https://api.opensuse.org
+url: https://download.opensuse.org
 group: suse
 repositories:
   Leap:
@@ -42,7 +42,7 @@ artifacts:
     repository: Leap
 ```
 
-The `apiurl` property is optional and defaults to `https://api.opensuse.org`, but can be used to get packages from another OpenBuildService instance.
+The `url` property is optional and defaults to `https://download.opensuse.org`, but can be used to get packages from another download site.
 
 The `repositories` key contains a dictionary of repository definitions.
 The name of those repositories is used in the artifacts.
