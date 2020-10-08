@@ -41,18 +41,18 @@ class Rpm:
 class Repo:
     def __init__(self, uri, project, repository):
         self.uri = uri
-        self.project = project
+        self.project = project.replace(':', ':/')
         self.repository = repository
         self._rpms = None
 
     def find_primary(self):
         ns = {'repo': 'http://linux.duke.edu/metadata/repo', 'rpm': 'http://linux.duke.edu/metadata/rpm'}
         f = urllib.request.urlopen(
-            "{}/repositories/{}/{}/repodata/repomd.xml".format(self.uri, self.project, self.repository)
+            "{}/{}/{}/repodata/repomd.xml".format(self.uri, self.project, self.repository)
         )
         doc = ET.fromstring(f.read())
         primary_href = doc.find("./repo:data[@type='primary']/repo:location", ns).get("href")
-        return "{}/repositories/{}/{}/{}".format(self.uri, self.project, self.repository, primary_href)
+        return "{}/{}/{}/{}".format(self.uri, self.project, self.repository, primary_href)
 
     def parse_primary(self):
         ns = {"c": "http://linux.duke.edu/metadata/common", "rpm":"http://linux.duke.edu/metadata/rpm"}
@@ -77,7 +77,7 @@ class Repo:
         """
         Equivalent of osc.core.get_binary_file
         """
-        f = urllib.request.urlopen("{}/repositories/{}/{}/{}".format(self.uri, self.project, self.repository, path))
+        f = urllib.request.urlopen("{}/{}/{}/{}".format(self.uri, self.project, self.repository, path))
         target_f = open(target, 'wb')
         shutil.copyfileobj(f, target_f)
         target_f.close()
@@ -291,7 +291,7 @@ class Configuration:
             f = open(config_path, 'r')
             data = yaml.safe_load(f)
             f.close()
-        self.url = data.get('url', "https://download.opensuse.org")
+        self.url = data.get('url', "https://download.opensuse.org/repositories")
         self.repo = repo
         repositories = data.get('repositories', {})
         repos = {
