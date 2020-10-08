@@ -154,11 +154,11 @@ class Artifact:
 
         pattern = self.jar if self.jar is not None else self.artifact
         end_pattern = r'[^/]*\.jar' if self.jar is None or not self.jar.endswith('.jar') else ''
-        full_pattern = '^/usr/share/.*/%s%s$' % (pattern, end_pattern)
+        full_pattern = '^/usr/.*/%s%s$' % (pattern, end_pattern)
 
         logging.debug('full pattern: %s' % full_pattern)
 
-        jars = [f for f in not_linked if re.match('^/usr/share/.*/{}'.format(end_pattern), f)]
+        jars = [f for f in not_linked if re.match('^/usr/.*/{}'.format(end_pattern), f)]
         if len(jars) == 0:
             raise RuntimeError('Found no jar to extract in ' + rpm_file)
         elif len(jars) > 1:
