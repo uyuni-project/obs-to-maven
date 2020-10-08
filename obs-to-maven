@@ -33,10 +33,12 @@ import zlib
 
 
 class Rpm:
-    def __init__(self, location, mtime):
+    def __init__(self, location, mtime, name, version):
         self.path = location
         self.mtime = mtime
         self.name = location[location.find('/') + 1:]
+        self.pkgname = name
+        self.version = version
 
 class Repo:
     def __init__(self, uri, project, repository):
@@ -60,12 +62,21 @@ class Repo:
         primary_xml = zlib.decompress(f.read(), 16 + zlib.MAX_WBITS)
         doc = ET.fromstring(primary_xml)
 
-        self._rpms = [
-            Rpm(n.find("c:location", ns).get("href"), int(n.find("c:time", ns).get("file")))
+        all_rpms = [
+            Rpm(n.find("c:location", ns).get("href"),
+                int(n.find("c:time", ns).get("file")),
+
+                n.find("c:name", ns).text,
+                "{}-{}".format(n.find("c:version", ns).get("ver"), n.find("c:version", ns).get("rel")))
             for n
             in doc.findall(".//c:package", ns)
             if n.find("c:arch", ns).text in ["x86_64", "noarch"]
         ]
+        latest_rpms = {}
+        for rpm in all_rpms:
+            if not latest_rpms.get(rpm.pkgname) or latest_rpms[rpm.pkgname].version < rpm.version:
+                latest_rpms[rpm.pkgname] = rpm
+        self._rpms = latest_rpms.values()
 
     @property
     def rpms(self):
