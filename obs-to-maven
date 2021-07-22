@@ -355,7 +355,7 @@ class Artifact:
         # Check if one of the artifact's jar has the same mtime. If so no need to update
         mtimes = [y for x in [
                     [os.stat(os.path.join(root,f)).st_mtime for f in files if f.endswith('.jar')]
-                        for root, dirs, files in os.walk(repo)
+                        for root, dirs, files in os.walk(os.path.join(repo, self.group))
                         if '%s%s%s' % (os.path.sep, self.artifact, os.path.sep) in root]
                     for y in x]
 
