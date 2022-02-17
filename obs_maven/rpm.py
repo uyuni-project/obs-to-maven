@@ -91,14 +91,14 @@ except ImportError:
 
 
 class Rpm:
-    def __init__(self, location, mtime, name, version_node):
+    def __init__(self, location, mtime, name, epoch, version, release):
         self.path = location
         self.mtime = mtime
         self.name = location[location.find('/') + 1:]
         self.pkgname = name
-        self.epoch = version_node.get('epoch')
-        self.version = version_node.get('ver')
-        self.release = version_node.get('rel')
+        self.epoch = epoch
+        self.version = version
+        self.release = release
 
     def compare(self, other):
         return _compare_rpm_labels(
