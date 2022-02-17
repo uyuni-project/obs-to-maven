@@ -34,42 +34,44 @@ class Configuration:
     def __init__(self, config_path, repo):
         data = {}
         if os.path.isfile(config_path):
-            f = open(config_path, 'r')
+            f = open(config_path, "r")
             data = yaml.safe_load(f)
             f.close()
-        self.url = data.get('url', "https://download.opensuse.org/repositories")
+        self.url = data.get("url", "https://download.opensuse.org/repositories")
         self.repo = repo
-        repositories = data.get('repositories', {})
-        repos = {
-            name: Repo(self.url, data['project'], data['repository'])
-            for name, data
-            in repositories.items()
-        }
+        repositories = data.get("repositories", {})
+        repos = {name: Repo(self.url, data["project"], data["repository"]) for name, data in repositories.items()}
 
-        self.artifacts = [Artifact(artifact, repos, data.get('group', 'suse')) for artifact in data.get('artifacts', [])]
+        self.artifacts = [
+            Artifact(artifact, repos, data.get("group", "suse")) for artifact in data.get("artifacts", [])
+        ]
+
 
 def main():
     ret = 0
     parser = argparse.ArgumentParser(
         description="OBS to Maven repository synchronization tool",
-        conflict_handler='resolve',
-        formatter_class=argparse.RawDescriptionHelpFormatter)
+        conflict_handler="resolve",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
-    parser.add_argument('config', help="Path to the YAML configuration file")
-    parser.add_argument('out', help="Path to the output maven repository")
+    parser.add_argument("config", help="Path to the YAML configuration file")
+    parser.add_argument("out", help="Path to the output maven repository")
 
     parser.add_argument(
-        "-d", "--debug",
+        "-d",
+        "--debug",
         help="Show debug messages",
         action="store_const",
         dest="loglevel",
         const=logging.DEBUG,
-        default=logging.INFO)
+        default=logging.INFO,
+    )
 
     args = parser.parse_args()
 
     logging.getLogger().setLevel(args.loglevel)
-    logging.debug('Reading configuration')
+    logging.debug("Reading configuration")
     config = Configuration(args.config, args.out)
     tmp = tempfile.mkdtemp(prefix="obsmvn-")
     try:
@@ -81,5 +83,6 @@ def main():
     shutil.rmtree(tmp)
     return ret
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     sys.exit(main())

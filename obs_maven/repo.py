@@ -27,15 +27,16 @@ import zlib
 import obs_maven.primary_handler
 from obs_maven.rpm import Rpm
 
+
 class Repo:
     def __init__(self, uri, project, repository):
         self.uri = uri
-        self.project = project.replace(':', ':/')
+        self.project = project.replace(":", ":/")
         self.repository = repository
         self._rpms = None
 
     def find_primary(self):
-        ns = {'repo': 'http://linux.duke.edu/metadata/repo', 'rpm': 'http://linux.duke.edu/metadata/rpm'}
+        ns = {"repo": "http://linux.duke.edu/metadata/repo", "rpm": "http://linux.duke.edu/metadata/rpm"}
         repomd_url = "{}/{}/{}/repodata/repomd.xml".format(self.uri, self.project, self.repository)
         logging.debug("Parsing %s", repomd_url)
         f = urllib.request.urlopen(repomd_url)
@@ -68,7 +69,7 @@ class Repo:
         Equivalent of osc.core.get_binary_file
         """
         f = urllib.request.urlopen("{}/{}/{}/{}".format(self.uri, self.project, self.repository, path))
-        target_f = open(target, 'wb')
+        target_f = open(target, "wb")
         shutil.copyfileobj(f, target_f)
         target_f.close()
         f.close()

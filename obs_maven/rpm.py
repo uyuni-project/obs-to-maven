@@ -38,9 +38,7 @@ except ImportError:
 
     from itertools import zip_longest
 
-    _subfield_pattern = re.compile(
-        r'(?P<junk>[^a-zA-Z0-9]*)((?P<text>[a-zA-Z]+)|(?P<num>[0-9]+))'
-    )
+    _subfield_pattern = re.compile(r"(?P<junk>[^a-zA-Z0-9]*)((?P<text>[a-zA-Z]+)|(?P<num>[0-9]+))")
 
     def _iter_rpm_subfields(field):
         """Yield subfields as 2-tuples that sort in the desired order
@@ -49,11 +47,11 @@ except ImportError:
         Numeric subfields are yielded as (1, int_value)
         """
         for subfield in _subfield_pattern.finditer(field):
-            text = subfield.group('text')
+            text = subfield.group("text")
             if text is not None:
                 yield (0, text)
             else:
-                yield (1, int(subfield.group('num')))
+                yield (1, int(subfield.group("num")))
 
     def _compare_rpm_field(lhs, rhs):
         # Short circuit for exact matches (including both being None)
@@ -77,7 +75,6 @@ except ImportError:
         # No relevant differences found between LHS and RHS
         return 0
 
-
     def _compare_rpm_labels(lhs, rhs):
         lhs_epoch, lhs_version, lhs_release = lhs
         rhs_epoch, rhs_version, rhs_release = rhs
@@ -94,7 +91,7 @@ class Rpm:
     def __init__(self, location, mtime, name, epoch, version, release):
         self.path = location
         self.mtime = mtime
-        self.name = location[location.find('/') + 1:]
+        self.name = location[location.find("/") + 1 :]
         self.pkgname = name
         self.epoch = epoch
         self.version = version
@@ -102,5 +99,5 @@ class Rpm:
 
     def compare(self, other):
         return _compare_rpm_labels(
-                (other.epoch, other.version, other.release),
-                (self.epoch, self.version, self.release))
+            (other.epoch, other.version, other.release), (self.epoch, self.version, self.release)
+        )
