@@ -22,6 +22,7 @@ import obs_maven.rpm
 COMMON_NS = "http://linux.duke.edu/metadata/common"
 SEARCHED_CHARS = ["arch", "name"]
 
+
 class Handler(xml.sax.handler.ContentHandler):
     """
     SAX parser handler for repository primary.xml files.
@@ -66,7 +67,8 @@ class Handler(xml.sax.handler.ContentHandler):
                     pkg_name,
                     self.package["version/epoch"],
                     self.package["version/ver"],
-                    self.package["version/rel"])
+                    self.package["version/rel"],
+                )
 
                 latest_rpm = self.rpms.get(pkg_name)
                 if latest_rpm is None or latest_rpm.compare(rpm):
