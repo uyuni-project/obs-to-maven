@@ -25,7 +25,6 @@ from xml.sax.xmlreader import InputSource
 import zlib
 
 import obs_maven.primary_handler
-from obs_maven.rpm import Rpm
 
 
 class Repo:
