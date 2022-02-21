@@ -28,9 +28,11 @@ class Handler(xml.sax.handler.ContentHandler):
     SAX parser handler for repository primary.xml files.
     """
 
-    package = None
-    rpms = {}
-    text = None
+    def __init__(self):
+        super().__init__()
+        self.package = None
+        self.rpms = {}
+        self.text = None
 
     def startElementNS(self, name, qname, attrs):
         searched_attrs = {
