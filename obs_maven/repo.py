@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 
-import io
+import gzip
 import logging
 import os
 import shutil
@@ -22,7 +22,6 @@ import xml.sax
 import xml.sax.handler
 import xml.etree.ElementTree as ET
 from xml.sax.xmlreader import InputSource
-import zlib
 
 import obs_maven.primary_handler
 
@@ -47,15 +46,15 @@ class Repo:
         primary_url = self.find_primary()
         logging.debug("Parsing primary %s", primary_url)
         with urllib.request.urlopen(primary_url) as primary_fd:
-            primary_xml = zlib.decompress(primary_fd.read(), 16 + zlib.MAX_WBITS)
-            parser = xml.sax.make_parser()
-            handler = obs_maven.primary_handler.Handler()
-            parser.setContentHandler(handler)
-            parser.setFeature(xml.sax.handler.feature_namespaces, True)
-            input_source = InputSource()
-            input_source.setByteStream(io.BytesIO(primary_xml))
-            parser.parse(input_source)
-            self._rpms = handler.rpms.values()
+            with gzip.GzipFile(fileobj=primary_fd, mode="rb") as gzip_fd:
+                parser = xml.sax.make_parser()
+                handler = obs_maven.primary_handler.Handler()
+                parser.setContentHandler(handler)
+                parser.setFeature(xml.sax.handler.feature_namespaces, True)
+                input_source = InputSource()
+                input_source.setByteStream(gzip_fd)
+                parser.parse(input_source)
+                self._rpms = handler.rpms.values()
 
     @property
     def rpms(self):
