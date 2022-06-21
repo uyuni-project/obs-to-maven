@@ -25,6 +25,8 @@ repositories:
   Uyuni:
     project: systemsmanagement:Uyuni:Master
     repository: openSUSE_Leap_15.1
+  Leap_sle:
+    url: https://download.opensuse.org/update/leap/15.4/sle
 artifacts:
   - artifact: asm
     package: asm3
@@ -36,13 +38,16 @@ artifacts:
   - artifact: commons-digester
     package: jakarta-commons-digester
     jar: jakarta-commons-digester-[0-9.]+\.jar
-    repository: Leap
+    repository: Leap_sle
 ```
 
 The `url` property is optional and defaults to `https://download.opensuse.org/repositories`, but can be used to get packages from another download site.
+The `url` is used together with the `project` and `repository` values for each repository to construct the full repository URL.
 
 The `repositories` key contains a dictionary of repository definitions.
 The name of those repositories is used in the artifacts.
+A repository can either be specified by its project/repository name or a custom `url` parameter that must be a full URL pointing to the repository.
+If both are provided, the custom `url` is used.
 
 The `artifacts` list describes all the artifacts to create in the maven repository.
 The properties of each artifact help locating the RPM and jar files in OBS. The following properties are mandatory:

@@ -27,20 +27,31 @@ import obs_maven.primary_handler
 
 
 class Repo:
-    def __init__(self, uri, project, repository):
-        self.uri = uri
-        self.project = project.replace(":", ":/")
-        self.repository = repository
+    def __init__(self, base_url, project, repository, custom_url=None):
+        self.base_url = base_url
+        self.custom_url = custom_url
+        if not custom_url:
+            if project is not None and repository is not None:
+                self.project = project.replace(":", ":/")
+                self.repository = repository
+            else:
+                raise ValueError("Either 'project' and 'repository' or 'url' must be defined for the repository")
         self._rpms = None
+
+    def get_repo_path(self, path):
+        if self.custom_url is not None:
+            return "{}/{}".format(self.custom_url, path)
+        else:
+            return "{}/{}/{}/{}".format(self.base_url, self.project, self.repository, path)
 
     def find_primary(self):
         ns = {"repo": "http://linux.duke.edu/metadata/repo", "rpm": "http://linux.duke.edu/metadata/rpm"}
-        repomd_url = "{}/{}/{}/repodata/repomd.xml".format(self.uri, self.project, self.repository)
+        repomd_url = self.get_repo_path("repodata/repomd.xml")
         logging.debug("Parsing %s", repomd_url)
         f = urllib.request.urlopen(repomd_url)
         doc = ET.fromstring(f.read())
         primary_href = doc.find("./repo:data[@type='primary']/repo:location", ns).get("href")
-        return "{}/{}/{}/{}".format(self.uri, self.project, self.repository, primary_href)
+        return self.get_repo_path(primary_href)
 
     def parse_primary(self):
         primary_url = self.find_primary()
@@ -66,7 +77,7 @@ class Repo:
         """
         Equivalent of osc.core.get_binary_file
         """
-        f = urllib.request.urlopen("{}/{}/{}/{}".format(self.uri, self.project, self.repository, path))
+        f = urllib.request.urlopen(self.get_repo_path(path))
         target_f = open(target, "wb")
         shutil.copyfileobj(f, target_f)
         target_f.close()
