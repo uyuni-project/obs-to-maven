@@ -4,7 +4,7 @@ Dependencies
 This tool runs only on Python 3... all the listed dependencies need to be installed for it.
 
 * PyYAML
-* rpm 
+* rpm
 * cpio
 
 Configuration file
@@ -17,27 +17,24 @@ url: https://download.opensuse.org/repositories
 group: suse
 repositories:
   Leap:
-    project: openSUSE:Leap:15.1
+    project: openSUSE:Leap:15.4
     repository: standard
-  Uyuni_Other:
-    project: systemsmanagement:Uyuni:Master:Other
-    repository: openSUSE_Leap_15.1
   Uyuni:
     project: systemsmanagement:Uyuni:Master
-    repository: openSUSE_Leap_15.1
+    repository: openSUSE_Leap_15.4
   Leap_sle:
     url: https://download.opensuse.org/update/leap/15.4/sle
 artifacts:
+  - artifact: salt-netapi-client
+    repository: Uyuni
   - artifact: asm
     package: asm3
     jar: asm3-all
     repository: Leap
-  - artifact: c3p0
-    group: sample
-    repository: Uyuni_Other
-  - artifact: commons-digester
+  - artifact: google-gson
     package: jakarta-commons-digester
-    jar: jakarta-commons-digester-[0-9.]+\.jar
+    jar: gson.jar
+    group: sle
     repository: Leap_sle
 ```
 
