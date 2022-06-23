@@ -21,7 +21,7 @@ osc add obs-to-maven_$RELEASE.orig.tar.gz
 
 # Update version in spec and dsc
 sed -i "s/^Version: \(.*\)/Version: $RELEASE-1/" obs-to-maven.dsc
-sed -i "s/^Version: \(.*\)/Version:\t$RELEASE/" obs-to-maven.spec
+sed -i "s/^Version:\( *\)[^ ]*/Version:\1$RELEASE/" obs-to-maven.spec
 
 # Update the Debtransform-Tar in dsc
 sed -i "s/^Debtransform-Tar.*\$/Debtransform-Tar: obs-to-maven_$RELEASE.orig.tar.gz/" obs-to-maven.dsc

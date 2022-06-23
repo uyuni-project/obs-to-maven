@@ -62,3 +62,12 @@ Since there is no silver bullet to find the RPM or the JAR file in it, there are
 As a maven repository needs a group ID for each artifact, this can be configured at several levels.
 Either at the root of the YAML structure in a `group` attribute or overridden by a `group` attribute in each artifact definition.
 `suse` is the default group if nothing is configured.
+
+Preparing a release
+===================
+
+* Create a git tag like `git tag -s -m "obs-to-maven release 1.1.1" v1.1.1`
+* Create a release in github
+* Branch the package in [OBS](https://build.opensuse.org/package/show/systemsmanagement:Uyuni:Utils/obs-to-maven) `osc bco systemsmanagement:Uyuni:Utils/obs-to-maven`
+* Run `/path/to/prepare_obs.sh 1.1.1` from the OBS branch checkout, write the changelog and `osc ci`
+* Submit the changes `osc sr`
