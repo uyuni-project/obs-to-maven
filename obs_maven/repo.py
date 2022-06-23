@@ -77,7 +77,9 @@ class Repo:
         """
         Equivalent of osc.core.get_binary_file
         """
-        f = urllib.request.urlopen(self.get_repo_path(path))
+        url = self.get_repo_path(path)
+        logging.debug("Getting binary from: %s", url)
+        f = urllib.request.urlopen(url)
         target_f = open(target, "wb")
         shutil.copyfileobj(f, target_f)
         target_f.close()
