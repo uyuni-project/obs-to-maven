@@ -79,9 +79,19 @@ class Repo:
         """
         url = self.get_repo_path(path)
         logging.debug("Getting binary from: %s", url)
-        f = urllib.request.urlopen(url)
-        target_f = open(target, "wb")
-        shutil.copyfileobj(f, target_f)
-        target_f.close()
-        f.close()
-        os.utime(target, (mtime, mtime))
+        for cnt in range(1, 4):
+            try:
+                f = urllib.request.urlopen(url)
+                target_f = open(target, "wb")
+                shutil.copyfileobj(f, target_f)
+                target_f.close()
+                f.close()
+                os.utime(target, (mtime, mtime))
+                break
+            except ConnectionResetError:
+                target_f.close()
+                f.close()
+                if cnt < 3:
+                    logging.debug("Getting binary try {}".format(cnt + 1))
+                else:
+                    raise
