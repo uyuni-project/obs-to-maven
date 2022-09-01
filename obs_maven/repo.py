@@ -17,6 +17,7 @@ import gzip
 import logging
 import os
 import shutil
+import time
 import urllib.request
 import xml.sax
 import xml.sax.handler
@@ -56,16 +57,24 @@ class Repo:
     def parse_primary(self):
         primary_url = self.find_primary()
         logging.debug("Parsing primary %s", primary_url)
-        with urllib.request.urlopen(primary_url) as primary_fd:
-            with gzip.GzipFile(fileobj=primary_fd, mode="rb") as gzip_fd:
-                parser = xml.sax.make_parser()
-                handler = obs_maven.primary_handler.Handler()
-                parser.setContentHandler(handler)
-                parser.setFeature(xml.sax.handler.feature_namespaces, True)
-                input_source = InputSource()
-                input_source.setByteStream(gzip_fd)
-                parser.parse(input_source)
-                self._rpms = handler.rpms.values()
+        for cnt in range(1, 4):
+            try:
+                with urllib.request.urlopen(primary_url) as primary_fd:
+                    with gzip.GzipFile(fileobj=primary_fd, mode="rb") as gzip_fd:
+                        parser = xml.sax.make_parser()
+                        handler = obs_maven.primary_handler.Handler()
+                        parser.setContentHandler(handler)
+                        parser.setFeature(xml.sax.handler.feature_namespaces, True)
+                        input_source = InputSource()
+                        input_source.setByteStream(gzip_fd)
+                        parser.parse(input_source)
+                        self._rpms = handler.rpms.values()
+            except:
+                if cnt < 3:
+                    logging.debug("Getting primary try {}".format(cnt + 1))
+                    time.sleep(2)
+                else:
+                    raise
 
     @property
     def rpms(self):
