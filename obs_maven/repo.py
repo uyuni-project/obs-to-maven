@@ -79,6 +79,8 @@ class Repo:
         """
         url = self.get_repo_path(path)
         logging.debug("Getting binary from: %s", url)
+        f = None
+        target_f = None
         for cnt in range(1, 4):
             try:
                 f = urllib.request.urlopen(url)
@@ -89,9 +91,14 @@ class Repo:
                 os.utime(target, (mtime, mtime))
                 break
             except ConnectionResetError:
-                target_f.close()
-                f.close()
+                if target_f:
+                    target_f.close()
+                    target_f = None
+                if f:
+                    f.close()
+                    f = None
                 if cnt < 3:
                     logging.debug("Getting binary try {}".format(cnt + 1))
+                    time.sleep(2)
                 else:
                     raise
