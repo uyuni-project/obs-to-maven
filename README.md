@@ -1,3 +1,13 @@
+Installing
+==========
+
+Builds are provided on openSUSE build servic for openSUSE, SUSE Linux Entreprise, CentOS, Fedora, Debian and Ubuntu.
+The repositories are listed as *experimental* on https://software.opensuse.org/package/obs-to-maven?search_term=obs-to-maven
+
+To install from sources, run:
+
+    pip install -e .
+
 Dependencies
 ============
 
