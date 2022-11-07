@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="obs-to-maven",
-    version="1.1.3",
+    version="1.1.4",
     author="Cedric Bosdonnat",
     author_email="cedric.bosdonnat@suse.com",
     description="Tool extracting jars from RPMs in OpenBuildService to a maven repo",

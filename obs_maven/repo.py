@@ -18,6 +18,7 @@ import logging
 import os
 import shutil
 import time
+import tempfile
 import urllib.request
 import xml.sax
 import xml.sax.handler
@@ -59,8 +60,20 @@ class Repo:
         logging.debug("Parsing primary %s", primary_url)
         for cnt in range(1, 4):
             try:
-                with urllib.request.urlopen(primary_url) as primary_fd:
-                    with gzip.GzipFile(fileobj=primary_fd, mode="rb") as gzip_fd:
+
+                # Download the primary.xml.gz to a file first to avoid
+                # connection resets
+                with tempfile.TemporaryFile() as tmp_file:
+                    with urllib.request.urlopen(primary_url) as primary_fd:
+                        # Avoid loading large documents into memory at once
+                        chunk_size = 1024 * 1024
+                        written = True
+                        while written:
+                            written = tmp_file.write(primary_fd.read(chunk_size))
+
+                    # Work on temporary file without loading it into memory at once
+                    tmp_file.seek(0)
+                    with gzip.GzipFile(fileobj=tmp_file, mode="rb") as gzip_fd:
                         parser = xml.sax.make_parser()
                         handler = obs_maven.primary_handler.Handler()
                         parser.setContentHandler(handler)
