@@ -60,6 +60,7 @@ class Repo:
         logging.debug("Parsing primary %s", primary_url)
         for cnt in range(1, 4):
             try:
+                logging.debug("Getting primary try %s", cnt)
 
                 # Download the primary.xml.gz to a file first to avoid
                 # connection resets
@@ -82,9 +83,9 @@ class Repo:
                         input_source.setByteStream(gzip_fd)
                         parser.parse(input_source)
                         self._rpms = handler.rpms.values()
-            except:
+                break
+            except OSError:
                 if cnt < 3:
-                    logging.debug("Getting primary try {}".format(cnt + 1))
                     time.sleep(2)
                 else:
                     raise
