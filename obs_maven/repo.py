@@ -20,6 +20,7 @@ import shutil
 import time
 import tempfile
 import urllib.request
+import urllib.error
 import xml.sax
 import xml.sax.handler
 import xml.etree.ElementTree as ET
@@ -57,10 +58,9 @@ class Repo:
 
     def parse_primary(self):
         primary_url = self.find_primary()
-        logging.debug("Parsing primary %s", primary_url)
         for cnt in range(1, 4):
             try:
-                logging.debug("Getting primary try %s", cnt)
+                logging.debug("Parsing primary %s, try %s", primary_url, cnt)
 
                 # Download the primary.xml.gz to a file first to avoid
                 # connection resets
@@ -84,6 +84,15 @@ class Repo:
                         parser.parse(input_source)
                         self._rpms = handler.rpms.values()
                 break
+            except urllib.error.HTTPError as e:
+                # We likely hit the repo while it changed:
+                # At the time we read repomd.xml refered to an primary.xml.gz
+                # that does not exist anymore.
+                if cnt < 3 and e.code == 404:
+                    primary_url = self.find_primary()
+                    time.sleep(2)
+                else:
+                    raise
             except OSError:
                 if cnt < 3:
                     time.sleep(2)
