@@ -130,7 +130,7 @@ class Artifact:
         return (dst_path, version)
 
     def deploy(self, jar, version, repo, mtime):
-        artifact_folder = os.path.join(repo, self.group, self.artifact)
+        artifact_folder = os.path.join(repo, Artifact.format_as_directory(self.group), self.artifact)
         try:
             os.makedirs(os.path.join(artifact_folder, version))
         except OSError as e:
@@ -212,7 +212,7 @@ class Artifact:
             y
             for x in [
                 [os.stat(os.path.join(root, f)).st_mtime for f in files if f.endswith(".jar")]
-                for root, dirs, files in os.walk(os.path.join(repo, self.group))
+                for root, dirs, files in os.walk(os.path.join(repo, Artifact.format_as_directory(self.group)))
                 if "%s%s%s" % (os.path.sep, self.artifact, os.path.sep) in root
             ]
             for y in x
@@ -237,3 +237,7 @@ class Artifact:
             self.deploy(jar, version, repo, file.mtime)
         else:
             logging.info("Skipping artifact %s" % self.artifact)
+
+    @staticmethod
+    def format_as_directory(group):
+        return group.replace(".", "/")
