@@ -40,7 +40,7 @@ class Configuration:
         self.url = data.get("url", "https://download.opensuse.org/repositories")
         self.repo = repo
         repositories = data.get("repositories", {})
-        repos = {name: Repo(self.url, data.get("project"), data.get("repository"), data.get("url")) for name, data in repositories.items()}
+        repos = {name: Repo(name, self.url, data.get("project"), data.get("repository"), data.get("url")) for name, data in repositories.items()}
 
         self.artifacts = [
             Artifact(artifact, repos, data.get("group", "suse")) for artifact in data.get("artifacts", [])
