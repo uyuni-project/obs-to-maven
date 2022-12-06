@@ -16,6 +16,7 @@
 import gzip
 import logging
 import os
+import pickle
 import shutil
 import time
 import tempfile
@@ -58,6 +59,15 @@ class Repo:
 
     def parse_primary(self):
         primary_url = self.find_primary()
+
+        # Check if we have this primary file cached
+        cache_file = primary_url.rsplit('/', 1)[1] + '.data'
+        if os.path.exists(cache_file):
+            logging.debug("Loading RPMs from cache file: %s", cache_file)
+            fd = open(cache_file, 'rb')
+            self._rpms = pickle.load(fd)
+            return
+
         for cnt in range(1, 4):
             try:
                 logging.debug("Parsing primary %s, try %s", primary_url, cnt)
@@ -83,6 +93,13 @@ class Repo:
                         input_source.setByteStream(gzip_fd)
                         parser.parse(input_source)
                         self._rpms = handler.rpms.values()
+
+                        # Store the parsed data in filesystem
+                        cache_file = primary_url.rsplit('/', 1)[1] + '.data'
+                        logging.debug("Caching RPMs in file: %s", cache_file)
+                        fw = open(cache_file, 'wb')
+                        pickle.dump(list(self._rpms), fw)
+                        fw.close()
                 break
             except urllib.error.HTTPError as e:
                 # We likely hit the repo while it changed:
