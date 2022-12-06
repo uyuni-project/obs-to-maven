@@ -31,7 +31,8 @@ import obs_maven.primary_handler
 
 
 class Repo:
-    def __init__(self, base_url, project, repository, custom_url=None):
+    def __init__(self, name, base_url, project, repository, custom_url=None):
+        self.name = name
         self.base_url = base_url
         self.custom_url = custom_url
         if not custom_url:
@@ -40,6 +41,7 @@ class Repo:
                 self.repository = repository
             else:
                 raise ValueError("Either 'project' and 'repository' or 'url' must be defined for the repository")
+        self.cache_path = '/var/cache/obs-to-maven'
         self._rpms = None
 
     def get_repo_path(self, path):
@@ -61,7 +63,7 @@ class Repo:
         primary_url = self.find_primary()
 
         # Check if we have this primary file cached
-        cache_file = primary_url.rsplit('/', 1)[1] + '.data'
+        cache_file = os.path.join(self.cache_path, self.name, primary_url.rsplit('/', 1)[1] + '.data')
         if os.path.exists(cache_file):
             logging.debug("Loading RPMs from cache file: %s", cache_file)
             fd = open(cache_file, 'rb')
@@ -94,8 +96,16 @@ class Repo:
                         parser.parse(input_source)
                         self._rpms = handler.rpms.values()
 
-                        # Store the parsed data in filesystem
-                        cache_file = primary_url.rsplit('/', 1)[1] + '.data'
+                        # Cache primary XML data in filesystem
+                        cache_dir = os.path.join(self.cache_path, self.name)
+                        if not os.path.exists(cache_dir):
+                            logging.debug("Creating cache directory: %s", cache_dir)
+                            os.makedirs(cache_dir)
+                        else:
+                            # Delete old cache files from directory
+                            for f in os.listdir(cache_dir):
+                                os.remove(os.path.join(cache_dir, f))
+                        cache_file = os.path.join(cache_dir, primary_url.rsplit('/', 1)[1] + '.data')
                         logging.debug("Caching RPMs in file: %s", cache_file)
                         fw = open(cache_file, 'wb')
                         pickle.dump(list(self._rpms), fw)
