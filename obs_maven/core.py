@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 class Configuration:
-    def __init__(self, config_path, repo):
+    def __init__(self, config_path, repo, cache_path):
         data = {}
         if os.path.isfile(config_path):
             f = open(config_path, "r")
@@ -40,7 +40,7 @@ class Configuration:
         self.url = data.get("url", "https://download.opensuse.org/repositories")
         self.repo = repo
         repositories = data.get("repositories", {})
-        repos = {name: Repo(name, self.url, data.get("project"), data.get("repository"), data.get("url")) for name, data in repositories.items()}
+        repos = {name: Repo(name, cache_path, self.url, data.get("project"), data.get("repository"), data.get("url")) for name, data in repositories.items()}
 
         self.artifacts = [
             Artifact(artifact, repos, data.get("group", "suse")) for artifact in data.get("artifacts", [])
@@ -59,6 +59,15 @@ def main():
     parser.add_argument("out", help="Path to the output maven repository")
 
     parser.add_argument(
+        "-c",
+        "--cache",
+        help="Path to the cache directory",
+        dest="cache",
+        default="/var/cache/obs-to-maven",
+        type=str,
+    )
+
+    parser.add_argument(
         "-d",
         "--debug",
         help="Show debug messages",
@@ -72,7 +81,7 @@ def main():
 
     logging.getLogger().setLevel(args.loglevel)
     logging.debug("Reading configuration")
-    config = Configuration(args.config, args.out)
+    config = Configuration(args.config, args.out, args.cache)
     tmp = tempfile.mkdtemp(prefix="obsmvn-")
     try:
         for artifact in config.artifacts:
