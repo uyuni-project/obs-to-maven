@@ -32,8 +32,7 @@ import obs_maven.primary_handler
 
 class Repo:
     def __init__(self, name, cache_path, base_url, project, repository, custom_url=None):
-        self.name = name
-        self.cache_path = cache_path
+        self.cache_dir = os.path.join(cache_path, name)
         self.base_url = base_url
         self.custom_url = custom_url
         if not custom_url:
@@ -63,7 +62,7 @@ class Repo:
         primary_url = self.find_primary()
 
         # Check if we have this primary file cached
-        cache_file = os.path.join(self.cache_path, self.name, primary_url.rsplit('/', 1)[1] + '.data')
+        cache_file = os.path.join(self.cache_dir, primary_url.rsplit('/', 1)[1] + '.data')
         if os.path.exists(cache_file):
             logging.debug("Loading RPMs from cache file: %s", cache_file)
             fd = open(cache_file, 'rb')
@@ -97,15 +96,13 @@ class Repo:
                         self._rpms = handler.rpms.values()
 
                         # Cache primary XML data in filesystem
-                        cache_dir = os.path.join(self.cache_path, self.name)
-                        if not os.path.exists(cache_dir):
-                            logging.debug("Creating cache directory: %s", cache_dir)
-                            os.makedirs(cache_dir)
+                        if not os.path.exists(self.cache_dir):
+                            logging.debug("Creating cache directory: %s", self.cache_dir)
+                            os.makedirs(self.cache_dir)
                         else:
                             # Delete old cache files from directory
-                            for f in os.listdir(cache_dir):
-                                os.remove(os.path.join(cache_dir, f))
-                        cache_file = os.path.join(cache_dir, primary_url.rsplit('/', 1)[1] + '.data')
+                            for f in os.listdir(self.cache_dir):
+                                os.remove(os.path.join(self.cache_dir, f))
                         logging.debug("Caching RPMs in file: %s", cache_file)
                         fw = open(cache_file, 'wb')
                         pickle.dump(list(self._rpms), fw)
