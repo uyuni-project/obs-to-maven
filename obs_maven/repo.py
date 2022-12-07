@@ -31,8 +31,9 @@ import obs_maven.primary_handler
 
 
 class Repo:
-    def __init__(self, name, base_url, project, repository, custom_url=None):
+    def __init__(self, name, cache_path, base_url, project, repository, custom_url=None):
         self.name = name
+        self.cache_path = cache_path
         self.base_url = base_url
         self.custom_url = custom_url
         if not custom_url:
@@ -41,7 +42,6 @@ class Repo:
                 self.repository = repository
             else:
                 raise ValueError("Either 'project' and 'repository' or 'url' must be defined for the repository")
-        self.cache_path = '/var/cache/obs-to-maven'
         self._rpms = None
 
     def get_repo_path(self, path):
