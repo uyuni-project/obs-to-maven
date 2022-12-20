@@ -94,19 +94,6 @@ class Repo:
                         input_source.setByteStream(gzip_fd)
                         parser.parse(input_source)
                         self._rpms = handler.rpms.values()
-
-                        # Cache primary XML data in filesystem
-                        if not os.path.exists(self.cache_dir):
-                            logging.debug("Creating cache directory: %s", self.cache_dir)
-                            os.makedirs(self.cache_dir)
-                        else:
-                            # Delete old cache files from directory
-                            for f in os.listdir(self.cache_dir):
-                                os.remove(os.path.join(self.cache_dir, f))
-                        logging.debug("Caching RPMs in file: %s", cache_file)
-                        fw = open(cache_file, 'wb')
-                        pickle.dump(list(self._rpms), fw)
-                        fw.close()
                 break
             except urllib.error.HTTPError as e:
                 # We likely hit the repo while it changed:
@@ -122,6 +109,23 @@ class Repo:
                     time.sleep(2)
                 else:
                     raise
+
+        try:
+            # Prepare cache directory
+            if not os.path.exists(self.cache_dir):
+                logging.debug("Creating cache directory: %s", self.cache_dir)
+                os.makedirs(self.cache_dir)
+            else:
+                # Delete old cache files from directory
+                for f in os.listdir(self.cache_dir):
+                    os.remove(os.path.join(self.cache_dir, f))
+
+            # Cache primary XML data in filesystem
+            with open(cache_file, 'wb') as fw:
+                logging.debug("Caching RPMs in file: %s", cache_file)
+                pickle.dump(list(self._rpms), fw)
+        except OSError as error:
+            logging.warn("Error caching the primary XML data: %s", error)
 
     @property
     def rpms(self):
