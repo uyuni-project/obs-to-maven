@@ -61,13 +61,16 @@ class Repo:
     def parse_primary(self):
         primary_url = self.find_primary()
 
-        # Check if we have this primary file cached
-        cache_file = os.path.join(self.cache_dir, primary_url.rsplit('/', 1)[1] + '.data')
-        if os.path.exists(cache_file):
-            logging.debug("Loading RPMs from cache file: %s", cache_file)
-            fd = open(cache_file, 'rb')
-            self._rpms = pickle.load(fd)
-            return
+        try:
+            # Check if we have this primary file cached
+            cache_file = os.path.join(self.cache_dir, primary_url.rsplit('/', 1)[1] + '.data')
+            if os.path.exists(cache_file):
+                logging.debug("Loading RPMs from cache file: %s", cache_file)
+                with open(cache_file, 'rb') as fd:
+                    self._rpms = pickle.load(fd)
+                    return
+        except OSError as error:
+            logging.warn("Error loading RPMs from cache: %s", error)
 
         for cnt in range(1, 4):
             try:
