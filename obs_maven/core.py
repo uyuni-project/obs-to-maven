@@ -63,7 +63,7 @@ def main():
         "--cache",
         help="Path to the cache directory",
         dest="cache",
-        default="/var/cache/obs-to-maven",
+        default=".obs-to-maven-cache",
         type=str,
     )
 
