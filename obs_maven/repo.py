@@ -70,7 +70,7 @@ class Repo:
                     self._rpms = pickle.load(fd)
                     return
         except OSError as error:
-            logging.warn("Error loading RPMs from cache: %s", error)
+            logging.warning("Error loading RPMs from cache: %s", error)
 
         for cnt in range(1, 4):
             try:
@@ -128,7 +128,7 @@ class Repo:
                 logging.debug("Caching RPMs in file: %s", cache_file)
                 pickle.dump(list(self._rpms), fw)
         except OSError as error:
-            logging.warn("Error caching the primary XML data: %s", error)
+            logging.warning("Error caching the primary XML data: %s", error)
 
     @property
     def rpms(self):
