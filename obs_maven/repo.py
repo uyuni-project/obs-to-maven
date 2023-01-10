@@ -32,7 +32,7 @@ import obs_maven.primary_handler
 
 class Repo:
     def __init__(self, name, cache_path, base_url, project, repository, custom_url=None):
-        self.cache_dir = os.path.join(cache_path, name)
+        self.cache_dir = os.path.join(cache_path, str(name))
         self.base_url = base_url
         self.custom_url = custom_url
         if not custom_url:
