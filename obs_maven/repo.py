@@ -153,7 +153,7 @@ class Repo:
                 f.close()
                 os.utime(target, (mtime, mtime))
                 break
-            except ConnectionResetError, urllib.error.HTTPError:
+            except (ConnectionResetError, urllib.error.HTTPError):
                 if target_f:
                     target_f.close()
                     target_f = None
