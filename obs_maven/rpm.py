@@ -97,6 +97,9 @@ class Rpm:
         self.version = version
         self.release = release
 
+    def __str__(self):
+        return "<Rpm {}: {}:{}-{}>".format(self.pkgname, self.epoch or 0, self.version, self.release)
+
     def compare(self, other):
         return _compare_rpm_labels(
             (other.epoch, other.version, other.release), (self.epoch, self.version, self.release)
