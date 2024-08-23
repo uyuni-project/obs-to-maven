@@ -73,7 +73,7 @@ class Handler(xml.sax.handler.ContentHandler):
                 )
 
                 latest_rpm = self.rpms.get(pkg_name)
-                if latest_rpm is None or latest_rpm.compare(rpm):
+                if latest_rpm is None or latest_rpm.compare(rpm) >= 1:
                     self.rpms[pkg_name] = rpm
         elif self.package is not None and name[0] == COMMON_NS and name[1] in SEARCHED_CHARS:
             self.package[name[1]] = self.text
