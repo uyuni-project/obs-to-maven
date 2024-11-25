@@ -23,6 +23,7 @@ import shutil
 import sys
 import tempfile
 import yaml
+import xml.etree.ElementTree as ET
 
 from obs_maven.repo import Repo
 from obs_maven.artifact import Artifact
@@ -39,13 +40,13 @@ class Configuration:
             f.close()
         self.url = data.get("url", "https://download.opensuse.org/repositories")
         self.repo = repo
+        
         repositories = data.get("repositories", {})
         repos = {name: Repo(name, cache_path, self.url, data.get("project"), data.get("repository"), data.get("url")) for name, data in repositories.items()}
 
         self.artifacts = [
             Artifact(artifact, repos, data.get("group", "suse")) for artifact in data.get("artifacts", []) if not allowed_artifacts or artifact["artifact"] in allowed_artifacts
         ]
-
 
 def main():
     ret = 0
@@ -57,6 +58,15 @@ def main():
 
     parser.add_argument("config", help="Path to the YAML configuration file")
     parser.add_argument("out", help="Path to the output maven repository")
+
+    parser.add_argument(
+        "-p",
+        "--parse-pom",
+        help="Extract the group id and the version information from the pom contained in the package",
+        dest="parse_pom",
+        action='store_true',
+        default=False
+    )
 
     parser.add_argument(
         "-a",
@@ -94,7 +104,7 @@ def main():
     tmp = tempfile.mkdtemp(prefix="obsmvn-")
     try:
         for artifact in config.artifacts:
-            artifact.process(config.repo, tmp)
+            artifact.process(config.repo, tmp, args.parse_pom)
     except RuntimeError as e:
         logging.error(e)
         ret = 1
