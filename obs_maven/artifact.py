@@ -15,6 +15,7 @@
 
 from datetime import datetime
 import errno
+import hashlib
 import logging
 import os
 import os.path
@@ -199,8 +200,13 @@ class Artifact:
             self.artifact,
             version,
         )
-        with open(os.path.join(artifact_folder, version, "%s-%s.pom" % (self.artifact, version)), "w") as fd:
+        pom_path = os.path.join(artifact_folder, version, "%s-%s.pom" % (self.artifact, version))
+        with open(pom_path, "w") as fd:
             fd.write(pom)
+
+        # Generate sha1
+        Artifact.compute_sha1_file(jar_path)
+        Artifact.compute_sha1_file(pom_path)
 
         # Maintain metadata file repo/group/artifact/maven-metadata-local.xml
         metadata_path = os.path.join(artifact_folder, "maven-metadata-local.xml")
@@ -277,6 +283,24 @@ class Artifact:
             self.deploy(jar, group, version, repo, file.mtime)
         else:
             logging.info("Skipping artifact %s" % self.artifact)
+
+    @staticmethod
+    def compute_sha1_file(file_name):
+        output_file_name = "{}.sha1".format(file_name)
+        logging.debug("Computing %s" % output_file_name)
+
+        # Compute the sha1 of the specified file
+        sha1_hasher = hashlib.sha1()
+        with open(file_name, 'rb') as f:
+            chunk_size = 1024 * 1024
+            chunk = f.read(chunk_size)
+            while chunk:
+                sha1_hasher.update(chunk)
+                chunk = f.read(chunk_size)
+
+        sha1_hash = sha1_hasher.hexdigest()
+        with open(output_file_name, 'w') as file:
+            file.write(sha1_hash)
 
     @staticmethod
     def extract_file_from_rpm(tmp, rpm_file, dst_path, entry):
