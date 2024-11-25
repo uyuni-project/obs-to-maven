@@ -145,10 +145,8 @@ class Artifact:
         os.utime(jar_path, (mtime, mtime))
 
         pom = """<?xml version="1.0" encoding="UTF-8"?>
-<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-         http://maven.apache.org/xsd/maven-4.0.0.xsd"
-         xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>%s</groupId>
   <artifactId>%s</artifactId>
@@ -182,7 +180,8 @@ class Artifact:
         # Something wrong happened or we don't have the file: create a fresh one
         if write_anew:
             xml = """<?xml version="1.0" encoding="UTF-8"?>
-<metadata>
+<metadata xmlns="http://maven.apache.org/METADATA/1.1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/METADATA/1.1.0 https://maven.apache.org/xsd/repository-metadata-1.1.0.xsd">
   <groupId>%s</groupId>
   <artifactId>%s</artifactId>
   <versioning>
