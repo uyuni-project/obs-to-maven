@@ -15,6 +15,7 @@
 
 from datetime import datetime
 import errno
+import hashlib
 import logging
 import os
 import os.path
@@ -27,7 +28,8 @@ import xml.etree.ElementTree as ET
 class Artifact:
     def __init__(self, config, repositories, group):
         self.artifact = config["artifact"]
-        self.group = config.get("group", group)
+        self.default_group = config.get("group", group)
+
         self.package = config.get("rpm") or config.get("package", self.artifact)
         if config.get("rpm"):
             logging.warning('artifact "rpm" property is deprecated')
@@ -65,27 +67,26 @@ class Artifact:
             return target_file
         return None
 
-    def extract(self, rpm_file, tmp):
+    def extract(self, rpm_file, tmp, parse_pom):
         # Get the rpm tags
         rpm_process = subprocess.Popen(["rpm", "-q", "--xml", "-p", rpm_file], stdout=subprocess.PIPE)
         rpm_tags = ET.fromstring(rpm_process.communicate()[0])
 
         # Get the file links list and package version
         links = [node.text for node in rpm_tags.findall('.//rpmTag[@name="Filelinktos"]/*')]
-        version = rpm_tags.find(".//rpmTag[@name='Version']/").text
+        # Extract the version declared by the RPM
+        rpm_version = rpm_tags.find(".//rpmTag[@name='Version']/").text
 
         # Get the files
         rpm_process = subprocess.Popen(["rpm", "-qlp", rpm_file], stdout=subprocess.PIPE)
         files = rpm_process.communicate()[0].splitlines()
 
         not_linked = [f.decode("utf-8") for (i, f) in enumerate(files) if links[i] is None]
-
         logging.debug("not linked:\n  %s" % "\n  ".join(not_linked))
 
         pattern = self.jar if self.jar is not None else self.artifact
         end_pattern = r"[^/]*\.jar" if self.jar is None or not self.jar.endswith(".jar") else ""
         full_pattern = "^/usr/.*/%s%s$" % (pattern, end_pattern)
-
         logging.debug("full pattern: %s" % full_pattern)
 
         jars = [f for f in not_linked if re.match("^/usr/.*/{}".format(end_pattern), f)]
@@ -103,34 +104,76 @@ class Artifact:
         else:
             jar_entry = jars[0]
 
-        # try harder to guess the version number from the jar file since it may be different from the rpm
+        # Parse the jar file version, optionally available in the file name
         matcher = re.search("%s-([0-9.]+).jar" % self.artifact, os.path.basename(jar_entry))
         if matcher:
-            version = matcher.group(1)
+            jar_version = matcher.group(1)
+        else:
+            jar_version = None
 
+        # If specified, extract the pom and parse the data
+        if parse_pom:
+            (pom_group, pom_version) = self.parse_pom_information(rpm_file, not_linked, tmp)
+        else:
+            (pom_group, pom_version) = (None, None)
+
+        # Extract the jar file from the RPM
         dst_path = os.path.join(tmp, os.path.basename(jar_entry))
         logging.info("extracting %s to %s" % (jar_entry, dst_path))
+        Artifact.extract_file_from_rpm(tmp, rpm_file, dst_path, jar_entry)
 
-        old_pwd = os.getcwd()
-        os.chdir(tmp)
-        rpm2cpio = subprocess.Popen(("rpm2cpio", rpm_file), stdout=subprocess.PIPE)
-        dst = open(dst_path, "wb")
-        cpio = subprocess.Popen(
-            ("cpio", "-id", "." + jar_entry), stdin=rpm2cpio.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        ret = cpio.wait()
-        dst.close()
-        os.chdir(old_pwd)
-
-        if ret != 0:
-            raise RuntimeError("Failed to extract jar file {}: {}".format(jar_entry, cpio.communicate()[1]))
-        shutil.copy(os.path.join(tmp, "." + jar_entry), dst_path)
         shutil.rmtree(os.path.join(tmp, "usr"))
 
-        return (dst_path, version)
+        return dst_path, pom_group or self.default_group, pom_version or jar_version or rpm_version
 
-    def deploy(self, jar, version, repo, mtime):
-        artifact_folder = os.path.join(repo, Artifact.format_as_directory(self.group), self.artifact)
+    def parse_pom_information(self, rpm_file, file_list, tmp):
+        # First check for a file named <artifact>.pom
+        logging.debug("Searching pom for artifact %s" % self.artifact)
+        poms = [f for f in file_list if re.match("^/usr/share/maven-poms/.*{}.pom".format(self.artifact), f)]
+        if len(poms) == 0:
+            # If no result, fallback to parse all available poms
+            logging.debug("No direct pom file found. Searching all poms available")
+            poms = [f for f in file_list if re.match("^/usr/share/maven-poms/.*.pom", f)]
+
+        if len(poms) == 0:
+            # Still no data available
+            logging.debug("No pom available in the package")
+            return None, None
+
+        for pom_entry in poms:
+            pom_dst_path = os.path.join(tmp, os.path.basename(pom_entry))
+            logging.debug("Processing pom available at %s" % pom_entry)
+
+            # Extract and parse the file
+            Artifact.extract_file_from_rpm(tmp, rpm_file, pom_dst_path, pom_entry)
+            pom_doc = ET.parse(pom_dst_path)
+            project_tag = pom_doc.getroot()
+
+            # Identify if the pom.xml file uses namespace: we need to ajust the xpaths
+            ns = project_tag.tag[:-len("project")]
+            artifact_tag = project_tag.find("./{}artifactId".format(ns))
+            if artifact_tag is None or artifact_tag.text != self.artifact:
+                logging.debug("artifact {} not found".format(self.artifact))
+                continue
+
+            # Search for a groupId tag, if not present check if it's available on the parent
+            group_tag = project_tag.find("./{}groupId".format(ns))
+            if group_tag is None:
+                group_tag = project_tag.find("./{}parent/{}groupId".format(ns, ns))
+
+            # Search for a version tag, if not present check if it's available on the parent
+            version_tag = project_tag.find("./{}version".format(ns))
+            if version_tag is None:
+                version_tag = project_tag.find("./{}parent/{}version".format(ns, ns))
+
+            if version_tag is not None and group_tag is not None:
+                logging.info("Maven identifier is %s:%s:%s" % (group_tag.text, self.artifact, version_tag.text))
+                return group_tag.text, version_tag.text
+
+        return None, None
+
+    def deploy(self, jar, group, version, repo, mtime):
+        artifact_folder = os.path.join(repo, Artifact.format_as_directory(group), self.artifact)
         try:
             os.makedirs(os.path.join(artifact_folder, version))
         except OSError as e:
@@ -145,22 +188,25 @@ class Artifact:
         os.utime(jar_path, (mtime, mtime))
 
         pom = """<?xml version="1.0" encoding="UTF-8"?>
-<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-         http://maven.apache.org/xsd/maven-4.0.0.xsd"
-         xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>%s</groupId>
   <artifactId>%s</artifactId>
   <version>%s</version>
   <description>POM was created from obs-to-maven</description>
 </project>""" % (
-            self.group,
+            group,
             self.artifact,
             version,
         )
-        with open(os.path.join(artifact_folder, version, "%s-%s.pom" % (self.artifact, version)), "w") as fd:
+        pom_path = os.path.join(artifact_folder, version, "%s-%s.pom" % (self.artifact, version))
+        with open(pom_path, "w") as fd:
             fd.write(pom)
+
+        # Generate sha1
+        Artifact.compute_sha1_file(jar_path)
+        Artifact.compute_sha1_file(pom_path)
 
         # Maintain metadata file repo/group/artifact/maven-metadata-local.xml
         metadata_path = os.path.join(artifact_folder, "maven-metadata-local.xml")
@@ -182,7 +228,8 @@ class Artifact:
         # Something wrong happened or we don't have the file: create a fresh one
         if write_anew:
             xml = """<?xml version="1.0" encoding="UTF-8"?>
-<metadata>
+<metadata xmlns="http://maven.apache.org/METADATA/1.1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/METADATA/1.1.0 https://maven.apache.org/xsd/repository-metadata-1.1.0.xsd">
   <groupId>%s</groupId>
   <artifactId>%s</artifactId>
   <versioning>
@@ -194,7 +241,7 @@ class Artifact:
   </versioning>
 </metadata>
 """ % (
-                self.group,
+                group,
                 self.artifact,
                 version,
                 version,
@@ -203,7 +250,7 @@ class Artifact:
             with open(metadata_path, "w") as fd:
                 fd.write(xml)
 
-    def process(self, repo, tmp):
+    def process(self, repo, tmp, parse_pom):
         logging.info("Processing artifact %s" % self.artifact)
         file = self.get_binary()
 
@@ -212,7 +259,7 @@ class Artifact:
             y
             for x in [
                 [os.stat(os.path.join(root, f)).st_mtime for f in files if f.endswith(".jar")]
-                for root, dirs, files in os.walk(os.path.join(repo, Artifact.format_as_directory(self.group)))
+                for root, dirs, files in os.walk(repo)
                 if "%s%s%s" % (os.path.sep, self.artifact, os.path.sep) in root
             ]
             for y in x
@@ -228,15 +275,49 @@ class Artifact:
             m = re.match(".*-([^-]+)-[^-]+.[^.]+.rpm", rpm_file)
             if m is None:
                 raise RuntimeError("Failed to get version of " + rpm_file)
-            version = m.group(1)
 
             # Extract the jar and pom
-            (jar, version) = self.extract(rpm_file, tmp)
+            (jar, group, version) = self.extract(rpm_file, tmp, parse_pom)
 
             # Install in the repository
-            self.deploy(jar, version, repo, file.mtime)
+            self.deploy(jar, group, version, repo, file.mtime)
         else:
             logging.info("Skipping artifact %s" % self.artifact)
+
+    @staticmethod
+    def compute_sha1_file(file_name):
+        output_file_name = "{}.sha1".format(file_name)
+        logging.debug("Computing %s" % output_file_name)
+
+        # Compute the sha1 of the specified file
+        sha1_hasher = hashlib.sha1()
+        with open(file_name, 'rb') as f:
+            chunk_size = 1024 * 1024
+            chunk = f.read(chunk_size)
+            while chunk:
+                sha1_hasher.update(chunk)
+                chunk = f.read(chunk_size)
+
+        sha1_hash = sha1_hasher.hexdigest()
+        with open(output_file_name, 'w') as file:
+            file.write(sha1_hash)
+
+    @staticmethod
+    def extract_file_from_rpm(tmp, rpm_file, dst_path, entry):
+        old_pwd = os.getcwd()
+        os.chdir(tmp)
+        rpm2cpio = subprocess.Popen(("rpm2cpio", rpm_file), stdout=subprocess.PIPE)
+        dst = open(dst_path, "wb")
+        cpio = subprocess.Popen(
+            ("cpio", "-id", "." + entry), stdin=rpm2cpio.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        ret = cpio.wait()
+        dst.close()
+        os.chdir(old_pwd)
+        if ret != 0:
+            raise RuntimeError("Failed to extract jar file {}: {}".format(entry, cpio.communicate()[1]))
+
+        shutil.copy(os.path.join(tmp, "." + entry), dst_path)
 
     @staticmethod
     def format_as_directory(group):
