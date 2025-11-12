@@ -154,7 +154,6 @@ class Repo:
                 os.utime(target, (mtime, mtime))
                 break
             except (ConnectionResetError, ConnectionRefusedError, urllib.error.HTTPError) as e:
-                error_type = 
                 logging.debug(
                     "Connection attempt failed for URL %s with error: %s.", 
                     url, 
