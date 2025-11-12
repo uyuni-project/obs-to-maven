@@ -63,10 +63,10 @@ class Repo:
 
         try:
             # Check if we have this primary file cached
-            cache_file = os.path.join(self.cache_dir, primary_url.rsplit('/', 1)[1] + '.data')
+            cache_file = os.path.join(self.cache_dir, primary_url.rsplit("/", 1)[1] + ".data")
             if os.path.exists(cache_file):
                 logging.debug("Loading RPMs from cache file: %s", cache_file)
-                with open(cache_file, 'rb') as fd:
+                with open(cache_file, "rb") as fd:
                     self._rpms = pickle.load(fd)
                     return
         except OSError as error:
@@ -124,7 +124,7 @@ class Repo:
                     os.remove(os.path.join(self.cache_dir, f))
 
             # Cache primary XML data in filesystem
-            with open(cache_file, 'wb') as fw:
+            with open(cache_file, "wb") as fw:
                 logging.debug("Caching RPMs in file: %s", cache_file)
                 pickle.dump(list(self._rpms), fw)
         except OSError as error:
@@ -154,12 +154,7 @@ class Repo:
                 os.utime(target, (mtime, mtime))
                 break
             except (ConnectionResetError, ConnectionRefusedError, urllib.error.HTTPError) as e:
-                error_type = 
-                logging.debug(
-                    "Connection attempt failed for URL %s with error: %s.", 
-                    url, 
-                    type(e).__name__
-                )
+                logging.debug("Connection attempt failed for URL %s with error: %s.", url, type(e).__name__)
                 if target_f:
                     target_f.close()
                     target_f = None
