@@ -254,13 +254,23 @@ class Artifact:
         logging.info("Processing artifact %s" % self.artifact)
         file = self.get_binary()
 
+        if parse_pom:
+            # If we rely on parsing the pom, we need to download the package to know the exact
+            # groupId, hence the prefix for the artifact. This means we could potentially
+            # skip an rpm if two different jars have the same artifact id, different groups
+            # but same mtime
+            artifact_prefix = os.path.sep
+        else:
+            # Otherwise we use the default group to avoid matching artifacts of other groups
+            artifact_prefix = "%s%s%s" % (os.path.sep, self.default_group, os.path.sep)
+
         # Check if one of the artifact's jar has the same mtime. If so no need to update
         mtimes = [
             y
             for x in [
                 [os.stat(os.path.join(root, f)).st_mtime for f in files if f.endswith(".jar")]
                 for root, dirs, files in os.walk(repo)
-                if "%s%s%s" % (os.path.sep, self.artifact, os.path.sep) in root
+                if "%s%s%s" % (artifact_prefix, self.artifact, os.path.sep) in root
             ]
             for y in x
         ]
