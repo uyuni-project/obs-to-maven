@@ -76,6 +76,7 @@ Either at the root of the YAML structure in a `group` attribute or overridden by
 Preparing a release
 ===================
 
+* Make sure the version at `obs_maven/_version.py` is correct (for example `1.1.1`)
 * Create a git tag like `git tag -s -m "obs-to-maven release 1.1.1" v1.1.1`
 * Create a release in github
 * Branch the package in [OBS](https://build.opensuse.org/package/show/systemsmanagement:Uyuni:Utils/obs-to-maven) `osc bco systemsmanagement:Uyuni:Utils/obs-to-maven`
