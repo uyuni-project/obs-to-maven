@@ -1,11 +1,13 @@
 import setuptools
 
+from obs_maven._version import __version__
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="obs-to-maven",
-    version="1.1.7",
+    version=__version__,
     author="Cedric Bosdonnat",
     author_email="cedric.bosdonnat@suse.com",
     description="Tool extracting jars from RPMs in OpenBuildService to a maven repo",

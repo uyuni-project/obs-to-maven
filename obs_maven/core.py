@@ -27,6 +27,7 @@ import xml.etree.ElementTree as ET
 
 from obs_maven.repo import Repo
 from obs_maven.artifact import Artifact
+from obs_maven._version import __version__
 
 logging.basicConfig(level=logging.INFO)
 
@@ -95,6 +96,13 @@ def main():
         const=logging.DEBUG,
         default=logging.INFO,
     )
+
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=__version__,
+    )
+
 
     args = parser.parse_args()
 
