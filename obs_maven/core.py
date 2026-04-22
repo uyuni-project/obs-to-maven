@@ -16,12 +16,14 @@
 # You should have received a copy of the GNU General Public License
 
 import argparse
+import http.client
 import logging
 import os
 import os.path
 import shutil
 import sys
 import tempfile
+import urllib.request
 import yaml
 import xml.etree.ElementTree as ET
 
@@ -107,6 +109,17 @@ def main():
     args = parser.parse_args()
 
     logging.getLogger().setLevel(args.loglevel)
+    if args.loglevel == logging.DEBUG:
+        # http.client.HTTPConnection.debuglevel is not respected by all Python versions
+        if sys.version_info >= (3, 12):
+            http.client.HTTPConnection.debuglevel = 1
+        else:
+            opener = urllib.request.build_opener(
+                urllib.request.HTTPHandler(debuglevel=1),
+                urllib.request.HTTPSHandler(debuglevel=1),
+            )
+            urllib.request.install_opener(opener)
+
     logging.debug("Reading configuration")
     config = Configuration(args.config, args.out, args.cache, args.allowed_artifacts)
     tmp = tempfile.mkdtemp(prefix="obsmvn-")
