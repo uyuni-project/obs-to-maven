@@ -59,13 +59,13 @@ class Repo:
         primary_href = doc.find("./repo:data[@type='primary']/repo:location", ns).get("href")
         return self.get_repo_path(primary_href)
 
-    def do_parse_primary(self, file_fd):
+    def do_parse_primary(self, input_stream):
         parser = xml.sax.make_parser()
         handler = obs_maven.primary_handler.Handler()
         parser.setContentHandler(handler)
         parser.setFeature(xml.sax.handler.feature_namespaces, True)
         input_source = InputSource()
-        input_source.setByteStream(file_fd)
+        input_source.setByteStream(input_stream)
         parser.parse(input_source)
         self._rpms = handler.rpms.values()
 
@@ -100,14 +100,14 @@ class Repo:
                     # Work on temporary file without loading it into memory at once
                     tmp_file.seek(0)
                     if primary_url.endswith(".gz"):
-                        with gzip.GzipFile(fileobj=tmp_file, mode="rb") as gzip_fd:
-                            self.do_parse_primary(gzip_fd)
+                        with gzip.GzipFile(fileobj=tmp_file, mode="rb") as input_stream:
+                            self.do_parse_primary(input_stream)
                     elif primary_url.endswith(".zst"):
                         with subprocess.Popen(["zstd", "-d", "-c", tmp_file.name],
                                               stdout=subprocess.PIPE,
                                               stderr=subprocess.DEVNULL
-                                              ).stdout as file_fd:
-                            self.do_parse_primary(file_fd)
+                                              ).stdout as input_stream:
+                            self.do_parse_primary(input_stream)
                 break
             except urllib.error.HTTPError as e:
                 # We likely hit the repo while it changed:
