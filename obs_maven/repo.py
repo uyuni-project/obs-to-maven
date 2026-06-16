@@ -18,6 +18,7 @@ import logging
 import os
 import pickle
 import shutil
+import subprocess
 import time
 import tempfile
 import urllib.request
@@ -58,6 +59,16 @@ class Repo:
         primary_href = doc.find("./repo:data[@type='primary']/repo:location", ns).get("href")
         return self.get_repo_path(primary_href)
 
+    def do_parse_primary(self, file_fd):
+        parser = xml.sax.make_parser()
+        handler = obs_maven.primary_handler.Handler()
+        parser.setContentHandler(handler)
+        parser.setFeature(xml.sax.handler.feature_namespaces, True)
+        input_source = InputSource()
+        input_source.setByteStream(file_fd)
+        parser.parse(input_source)
+        self._rpms = handler.rpms.values()
+
     def parse_primary(self):
         primary_url = self.find_primary()
 
@@ -76,9 +87,9 @@ class Repo:
             try:
                 logging.debug("Parsing primary %s, try %s", primary_url, cnt)
 
-                # Download the primary.xml.gz to a file first to avoid
-                # connection resets
-                with tempfile.TemporaryFile() as tmp_file:
+                # Download the primary.xml.gz/primary.xml.zst to a file first
+                # to avoid connection resets
+                with tempfile.NamedTemporaryFile() as tmp_file:
                     with urllib.request.urlopen(primary_url) as primary_fd:
                         # Avoid loading large documents into memory at once
                         chunk_size = 1024 * 1024
@@ -88,15 +99,15 @@ class Repo:
 
                     # Work on temporary file without loading it into memory at once
                     tmp_file.seek(0)
-                    with gzip.GzipFile(fileobj=tmp_file, mode="rb") as gzip_fd:
-                        parser = xml.sax.make_parser()
-                        handler = obs_maven.primary_handler.Handler()
-                        parser.setContentHandler(handler)
-                        parser.setFeature(xml.sax.handler.feature_namespaces, True)
-                        input_source = InputSource()
-                        input_source.setByteStream(gzip_fd)
-                        parser.parse(input_source)
-                        self._rpms = handler.rpms.values()
+                    if primary_url.endswith(".gz"):
+                        with gzip.GzipFile(fileobj=tmp_file, mode="rb") as gzip_fd:
+                            self.do_parse_primary(gzip_fd)
+                    elif primary_url.endswith(".zst"):
+                        with subprocess.Popen(["zstd", "-d", "-c", tmp_file.name],
+                                              stdout=subprocess.PIPE,
+                                              stderr=subprocess.DEVNULL
+                                              ).stdout as file_fd:
+                            self.do_parse_primary(file_fd)
                 break
             except urllib.error.HTTPError as e:
                 # We likely hit the repo while it changed:
