@@ -108,6 +108,8 @@ class Repo:
                                               stderr=subprocess.DEVNULL
                                               ).stdout as input_stream:
                             self.do_parse_primary(input_stream)
+                    else:
+                        raise ValueError(f"Unsupported primary metadata compression: {primary_url}")
                 break
             except urllib.error.HTTPError as e:
                 # We likely hit the repo while it changed:
