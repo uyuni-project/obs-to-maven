@@ -38,6 +38,7 @@ class Artifact:
         if not self.repository:
             raise RuntimeError("Missing repository definition: " + config["repository"])
         self.jar = config.get("jar")
+        self.classifier = config.get("classifier")
 
     def get_binary(self):
         file_pattern = self.package if self.package.endswith("-") else self.package + "-[0-9]"
@@ -84,9 +85,18 @@ class Artifact:
         not_linked = [f.decode("utf-8") for (i, f) in enumerate(files) if links[i] is None]
         logging.debug("not linked:\n  %s" % "\n  ".join(not_linked))
 
-        pattern = self.jar if self.jar is not None else self.artifact
-        end_pattern = r"[^/]*\.jar" if self.jar is None or not self.jar.endswith(".jar") else ""
-        full_pattern = "^/usr/.*/%s%s$" % (pattern, end_pattern)
+        if self.jar:
+            # If the attribute jar is specified, use it as is
+            jar_pattern = self.jar
+        elif self.classifier:
+            # In case of classifier, cover both artifact-classifier and artifact-version-classifier
+            jar_pattern = "%s(?:-[0-9.]+)?-%s" % (self.artifact, self.classifier)
+        else:
+            # Otherwise, just use the artifact, the end_pattern will ensure we match everything after it
+            jar_pattern = self.artifact
+
+        end_pattern = r"[^/]*\.jar" if not jar_pattern.endswith(".jar") else ""
+        full_pattern = "^/usr/.*/%s%s$" % (jar_pattern, end_pattern)
         logging.debug("full pattern: %s" % full_pattern)
 
         jars = [f for f in not_linked if re.match("^/usr/.*/{}".format(end_pattern), f)]
@@ -95,7 +105,7 @@ class Artifact:
         elif len(jars) > 1:
             to_extract = [f for f in jars if re.match(full_pattern, f)]
             if len(to_extract) == 0:
-                raise RuntimeError("Found no jar matching {} in {}".format(pattern, rpm_file))
+                raise RuntimeError("Found no jar matching {} in {}".format(jar_pattern, rpm_file))
             elif len(to_extract) > 1:
                 raise RuntimeError(
                     "Found several jars to extract in {}:\n  {}".format(rpm_file, "\n  ".join(to_extract))
@@ -105,17 +115,10 @@ class Artifact:
             jar_entry = jars[0]
 
         # Parse the jar file version, optionally available in the file name
-        matcher = re.search("%s-([0-9.]+).jar" % self.artifact, os.path.basename(jar_entry))
-        if matcher:
-            jar_version = matcher.group(1)
-        else:
-            jar_version = None
+        jar_version = self.parse_jar_version(os.path.basename(jar_entry))
 
         # If specified, extract the pom and parse the data
-        if parse_pom:
-            (pom_group, pom_version) = self.parse_pom_information(rpm_file, not_linked, tmp)
-        else:
-            (pom_group, pom_version) = (None, None)
+        (pom_group, pom_version) = self.parse_pom_information(rpm_file, not_linked, tmp) if parse_pom else (None, None)
 
         # Extract the jar file from the RPM
         dst_path = os.path.join(tmp, os.path.basename(jar_entry))
@@ -125,6 +128,24 @@ class Artifact:
         shutil.rmtree(os.path.join(tmp, "usr"))
 
         return dst_path, pom_group or self.default_group, pom_version or jar_version or rpm_version
+
+    def parse_jar_version(self, jar_name):
+        escaped_artifact = re.escape(self.artifact)
+
+        # Standard pattern: artifact-version.jar
+        name_patterns = [r"%s-([0-9.]+)\.jar" % escaped_artifact]
+        if self.classifier:
+            # If the classifier is present we accept it in the filename, either before or after the version
+            escaped_classifier = re.escape(self.classifier)
+            name_patterns.append(r"%s-([0-9.]+)-%s\.jar" % (escaped_artifact, escaped_classifier))
+            name_patterns.append(r"%s-%s-([0-9.]+)\.jar" % (escaped_artifact, escaped_classifier))
+
+        for name_pattern in name_patterns:
+            matcher = re.search(name_pattern, jar_name)
+            if matcher:
+                return matcher.group(1)
+
+        return None
 
     def parse_pom_information(self, rpm_file, file_list, tmp):
         # First check for a file named <artifact>.pom
@@ -181,7 +202,8 @@ class Artifact:
                 pass
             else:
                 raise
-        jar_path = os.path.join(artifact_folder, version, "%s-%s.jar" % (self.artifact, version))
+        jar_name = "%s-%s%s.jar" % (self.artifact, version, "-" + self.classifier if self.classifier else "")
+        jar_path = os.path.join(artifact_folder, version, jar_name)
         logging.info("deploying %s to %s" % (jar, jar_path))
         shutil.copyfile(jar, jar_path)
         logging.debug("Setting mtime %d on %s" % (mtime, jar_path))
@@ -254,26 +276,8 @@ class Artifact:
         logging.info("Processing artifact %s" % self.artifact)
         file = self.get_binary()
 
-        if parse_pom:
-            # If we rely on parsing the pom, we need to download the package to know the exact
-            # groupId, hence the prefix for the artifact. This means we could potentially
-            # skip an rpm if two different jars have the same artifact id, different groups
-            # but same mtime
-            artifact_prefix = os.path.sep
-        else:
-            # Otherwise we use the default group to avoid matching artifacts of other groups
-            artifact_prefix = "%s%s%s" % (os.path.sep, self.default_group, os.path.sep)
-
         # Check if one of the artifact's jar has the same mtime. If so no need to update
-        mtimes = [
-            y
-            for x in [
-                [os.stat(os.path.join(root, f)).st_mtime for f in files if f.endswith(".jar")]
-                for root, dirs, files in os.walk(repo)
-                if "%s%s%s" % (artifact_prefix, self.artifact, os.path.sep) in root
-            ]
-            for y in x
-        ]
+        mtimes = Artifact.get_mtimes(repo, None if parse_pom else self.default_group, self.artifact, self.classifier)
 
         if not [mtime for mtime in mtimes if file.mtime == int(mtime)]:
             logging.debug("package mtime: %d, [%s]" % (file.mtime, ", ".join(["%f" % t for t in mtimes])))
@@ -332,3 +336,36 @@ class Artifact:
     @staticmethod
     def format_as_directory(group):
         return group.replace(".", "/")
+
+    @staticmethod
+    def get_mtimes(repo, default_group, artifact, classifier):
+        if default_group is None:
+            # If we rely on parsing the pom, we need to download the package to know the exact
+            # groupId, hence the prefix for the artifact. This means we could potentially
+            # skip an rpm if two different jars have the same artifact id, different groups
+            # but same mtime
+            artifact_prefix = os.path.sep
+        else:
+            # Otherwise we use the default group to avoid matching artifacts of other groups
+            artifact_prefix = "%s%s%s" % (os.path.sep, default_group, os.path.sep)
+
+        artifact_path = "%s%s%s" % (artifact_prefix, artifact, os.path.sep)
+        mtimes = []
+
+        for root, dirs, files in os.walk(repo):
+            if artifact_path not in root:
+                continue
+
+            version = os.path.basename(root)
+            for filename in files:
+                if Artifact.is_expected_jar(artifact, classifier, filename, version):
+                    mtimes.append(os.stat(os.path.join(root, filename)).st_mtime)
+
+        return mtimes
+
+    @staticmethod
+    def is_expected_jar(artifact, classifier, filename, version):
+        if classifier:
+            return filename == "%s-%s-%s.jar" % (artifact, version, classifier)
+
+        return filename == "%s-%s.jar" % (artifact, version)

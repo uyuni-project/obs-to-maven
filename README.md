@@ -65,9 +65,14 @@ The properties of each artifact help locating the RPM and jar files in OBS. The 
 Since there is no silver bullet to find the RPM or the JAR file in it, there are some additional optional properties to provide hints:
 
 * `package`: the name of the package in OBS. Note that this is different from the RPM name. By default, the artifact name is used and the `demo`, `test`, `manual`, `examples` and `javadoc` rpms are discarded. If the pattern includes the version match, terminate it with `-` to avoid the `-[0-9]` pattern to be appended.
-* `arch`: defaults to `noarch`, but this may need to be overriden in some cases.
+* `arch`: defaults to `noarch`, but this may need to be overridden in some cases.
 * `rpm`: a regular expression to match the file name of the RPM **deprecated**
-* `jar`: a regular expression to match the non symlinked jar base name.
+* `jar`: a regular expression to match the non-symlinked JAR base name when the RPM contains multiple candidate JARs.
+* `classifier`: an optional Maven classifier. The selected JAR is deployed as `<artifact>-<version>-<classifier>.jar`.
+
+When multiple candidate JARs are present and `jar` is not set, a classifier selects names such as `<artifact>-<classifier>.jar`, `<artifact>-<version>-<classifier>.jar`, or `<artifact>-<classifier>-<version>.jar`. The version before the classifier can contain digits and dots. If there is only one candidate JAR, it is selected without applying the artifact or classifier pattern.
+
+The deployed version comes from the POM when POM parsing is enabled and provides a version. Otherwise, a version in the JAR name is used when recognized, falling back to the RPM version. Freshness checks compare the RPM's modification time with the exact deployed JAR filename for the artifact, version directory, and classifier.
 
 As a maven repository needs a group ID for each artifact, this can be configured at several levels.
 Either at the root of the YAML structure in a `group` attribute or overridden by a `group` attribute in each artifact definition.
